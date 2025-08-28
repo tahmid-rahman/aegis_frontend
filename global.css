@@ -1,0 +1,205 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Light Mode Colors */
+:root {
+  /* Primary Colors */
+  --color-primary: 103, 80, 164; /* #6750A4 */
+  --color-primary-container: 230, 224, 249; /* #E6E0F9 */
+  
+  /* Secondary Colors */
+  --color-secondary: 94, 92, 230; /* #5E5CE6 */
+  --color-secondary-container: 227, 226, 255; /* #E3E2FF */
+  
+  /* Tertiary Colors */
+  --color-tertiary: 0, 103, 131; /* #006783 */
+  --color-tertiary-container: 188, 231, 246; /* #BCE7F6 */
+  
+  /* Surface Colors */
+  --color-surface: 255, 255, 255; /* #FFFFFF */
+  --color-surface-variant: 231, 224, 236; /* #E7E0EC */
+  
+  /* Background Colors */
+  --color-background: 255, 255, 255; /* #FFFFFF */
+  
+  /* Error Colors */
+  --color-error: 179, 38, 30; /* #B3261E */
+  --color-error-container: 249, 222, 220; /* #F9DEDC */
+  
+  /* Text Colors */
+  --color-on-primary: 255, 255, 255; /* #FFFFFF */
+  --color-on-secondary: 255, 255, 255; /* #FFFFFF */
+  --color-on-surface: 27, 27, 31; /* #1B1B1F */
+  --color-on-surface-variant: 73, 69, 79; /* #49454F */
+  --color-on-error: 255, 255, 255; /* #FFFFFF */
+  
+  /* Accent Colors (Updated) */
+  --color-accent: 236, 64, 122; /* #EC407A (Pink accent) */
+  --color-accent-variant: 194, 24, 91; /* #C2185B */
+  
+  /* State Colors */
+  --color-hover: 241, 245, 249; /* #F1F5F9 */
+  --color-pressed: 226, 232, 240; /* #E2E8F0 */
+}
+
+/* Dark Mode Colors */
+.dark {
+  /* Primary Colors */
+  --color-primary: 208, 188, 255; /* #D0BCFF */
+  --color-primary-container: 79, 70, 111; /* #4F466F */
+  
+  /* Secondary Colors */
+  --color-secondary: 187, 186, 255; /* #BBBAFF */
+  --color-secondary-container: 66, 65, 128; /* #424180 */
+  
+  /* Tertiary Colors */
+  --color-tertiary: 144, 219, 244; /* #90DBF4 */
+  --color-tertiary-container: 0, 83, 105; /* #005369 */
+  
+  /* Surface Colors */
+  --color-surface: 28, 27, 31; /* #1C1B1F */
+  --color-surface-variant: 73, 69, 79; /* #49454F */
+  
+  /* Background Colors */
+  --color-background: 18, 18, 18; /* #121212 */
+  
+  /* Error Colors */
+  --color-error: 242, 184, 181; /* #F2B8B5 */
+  --color-error-container: 140, 29, 24; /* #8C1D18 */
+  
+  /* Text Colors */
+  --color-on-primary: 56, 42, 101; /* #382A65 */
+  --color-on-secondary: 45, 44, 91; /* #2D2C5B */
+  --color-on-surface: 230, 225, 229; /* #E6E1E5 */
+  --color-on-surface-variant: 202, 196, 208; /* #CAC4D0 */
+  --color-on-error: 96, 20, 16; /* #601410 */
+  
+  /* Accent Colors (Updated) */
+  --color-accent: 255, 138, 128; /* #FF8A80 */
+  --color-accent-variant: 255, 105, 97; /* #FF6961 */
+  
+  /* State Colors */
+  --color-hover: 30, 30, 30; /* #1E1E1E */
+  --color-pressed: 38, 38, 38; /* #262626 */
+}
+
+/* Base Color Classes */
+.bg-primary {
+  background-color: rgb(var(--color-primary));
+}
+.bg-primary-container {
+  background-color: rgb(var(--color-primary-container));
+}
+.bg-secondary {
+  background-color: rgb(var(--color-secondary));
+}
+.bg-secondary-container {
+  background-color: rgb(var(--color-secondary-container));
+}
+.bg-tertiary {
+  background-color: rgb(var(--color-tertiary));
+}
+.bg-tertiary-container {
+  background-color: rgb(var(--color-tertiary-container));
+}
+.bg-surface {
+  background-color: rgb(var(--color-surface));
+}
+.bg-surface-variant {
+  background-color: rgb(var(--color-surface-variant));
+}
+.bg-background {
+  background-color: rgb(var(--color-background));
+}
+.bg-error {
+  background-color: rgb(var(--color-error));
+}
+.bg-error-container {
+  background-color: rgb(var(--color-error-container));
+}
+.bg-accent {
+  background-color: rgb(var(--color-accent));
+}
+.bg-accent-variant {
+  background-color: rgb(var(--color-accent-variant));
+}
+.bg-hover {
+  background-color: rgb(var(--color-hover));
+}
+.bg-pressed {
+  background-color: rgb(var(--color-pressed));
+}
+
+/* Text Color Classes */
+.text-on-primary {
+  color: rgb(var(--color-on-primary));
+}
+.text-on-secondary {
+  color: rgb(var(--color-on-secondary));
+}
+.text-on-surface {
+  color: rgb(var(--color-on-surface));
+}
+.text-on-surface-variant {
+  color: rgb(var(--color-on-surface-variant));
+}
+.text-on-error {
+  color: rgb(var(--color-on-error));
+}
+.text-on-accent {
+  color: white; /* Always white on accent for contrast */
+}
+
+/* Emergency Overrides */
+.bg-panic {
+  background-color: #FF1744; /* Vibrant red (Android SOS) */
+}
+.dark .bg-panic {
+  background-color: #FF616F; /* Darker red */
+}
+
+/* Additional Utility Classes */
+.text-headline {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 700;
+}
+.text-title {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+}
+.text-body {
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+.text-label {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+}
+.text-caption {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+/* Border Colors */
+.border-primary {
+  border-color: rgb(var(--color-primary));
+}
+.border-secondary {
+  border-color: rgb(var(--color-secondary));
+}
+.border-tertiary {
+  border-color: rgb(var(--color-tertiary));
+}
+.border-surface {
+  border-color: rgb(var(--color-surface-variant));
+}
+.border-error {
+  border-color: rgb(var(--color-error));
+}
+.border-accent {
+  border-color: rgb(var(--color-accent));
+}

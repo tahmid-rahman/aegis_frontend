@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alex Carter | CS Innovator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.11.4/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.11.4/dist/ScrollTrigger.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.11.4/dist/ScrollToPlugin.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.11.4/dist/Draggable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.11.4/dist/MotionPathPlugin.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            light: '#6366f1',
+                            DEFAULT: '#4f46e5',
+                            dark: '#4338ca'
+                        },
+                        secondary: {
+                            light: '#ec4899',
+                            DEFAULT: '#db2777',
+                            dark: '#be185d'
+                        },
+                        dark: '#0f172a',
+                        light: '#f8fafc',
+                        glass: 'rgba(255, 255, 255, 0.08)'
+                    },
+                    fontFamily: {
+                        sans: ['"Space Grotesk"', 'sans-serif'],
+                        mono: ['"Space Mono"', 'monospace']
+                    },
+                    boxShadow: {
+                        'glass': '0 4px 30px rgba(0, 0, 0, 0.1)',
+                        'neon': '0 0 10px rgba(79, 70, 229, 0.7), 0 0 20px rgba(79, 70, 229, 0.5)'
+                    },
+                    animation: {
+                        'float': 'float 6s ease-in-out infinite',
+                        'float-reverse': 'float 6s ease-in-out infinite reverse',
+                        'gradient': 'gradient 8s ease infinite',
+                        'text-gradient': 'text-gradient 8s ease infinite'
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-20px)' }
+                        },
+                        gradient: {
+                            '0%, 100%': { 'background-position': '0% 50%' },
+                            '50%': { 'background-position': '100% 50%' }
+                        },
+                        'text-gradient': {
+                            '0%, 100%': { 
+                                'background-position': '0% 50%',
+                                'background-size': '200% 200%'
+                            },
+                            '50%': { 
+                                'background-position': '100% 50%',
+                                'background-size': '200% 200%'
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+        
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            scroll-behavior: smooth;
+            overflow-x: hidden;
+        }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .gradient-text {
+            background: linear-gradient(90deg, #6366f1, #ec4899);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: text-gradient 8s ease infinite;
+            background-size: 200% 200%;
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(-45deg, #6366f1, #ec4899, #4f46e5, #db2777);
+            background-size: 400% 400%;
+            animation: gradient 15s ease infinite;
+        }
+        
+        .skill-pill {
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .skill-pill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transform: translateX(-100%);
+            transition: transform 0.6s ease;
+        }
+        
+        .skill-pill:hover::after {
+            transform: translateX(100%);
+        }
+        
+        .project-card {
+            transform-style: preserve-3d;
+            transform: perspective(1000px);
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        
+        .project-card:hover {
+            transform: perspective(1000px) rotateX(5deg) rotateY(5deg) translateY(-10px);
+            box-shadow: 0 25px 50px -12px rgba(79, 70, 229, 0.25);
+        }
+        
+        .hexagon {
+            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+        }
+        
+        .content-wrapper {
+            position: relative;
+            z-index: 1;
+        }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #4f46e5;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6366f1;
+        }
+        
+        /* Animation Classes */
+        .will-change-transform {
+            will-change: transform;
+        }
+        
+        .will-change-opacity {
+            will-change: opacity;
+        }
+        
+        .animation-target {
+            opacity: 0;
+        }
+        
+        .text-stroke {
+            -webkit-text-stroke: 1px #4f46e5;
+            color: transparent;
+        }
+        
+        .hover-grow {
+            transition: transform 0.3s ease;
+        }
+        
+        .hover-grow:hover {
+            transform: scale(1.05);
+        }
+        
+        .hover-underline-animation {
+            position: relative;
+        }
+        
+        .hover-underline-animation::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            transform: scaleX(0);
+            height: 2px;
+            bottom: 0;
+            left: 0;
+            background: linear-gradient(90deg, #6366f1, #ec4899);
+            transform-origin: bottom right;
+            transition: transform 0.25s ease-out;
+        }
+        
+        .hover-underline-animation:hover::after {
+            transform: scaleX(1);
+            transform-origin: bottom left;
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <!-- Navigation -->
+    <nav class="fixed w-full z-50 glass-card">
+        <div class="max-w-7xl mx-auto px-6 py-4">
+            <div class="flex justify-between items-center">
+                <a href="#home" class="text-2xl font-bold gradient-text hover-underline-animation">AC</a>
+                
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="#home" class="text-light hover:text-primary transition hover-underline-animation">Home</a>
+                    <a href="#about" class="text-light hover:text-primary transition hover-underline-animation">About</a>
+                    <a href="#projects" class="text-light hover:text-primary transition hover-underline-animation">Projects</a>
+                    <a href="#skills" class="text-light hover:text-primary transition hover-underline-animation">Skills</a>
+                    <a href="#contact" class="px-4 py-2 bg-primary rounded-full font-medium hover:bg-primary-dark transition shadow-neon hover-grow">
+                        Contact
+                    </a>
+                </div>
+                
+                <button id="menu-btn" class="md:hidden text-light hover:text-primary focus:outline-none">
+                    <i class="fas fa-bars text-2xl"></i>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Mobile menu -->
+        <div id="mobile-menu" class="hidden md:hidden glass-card px-6 py-4">
+            <div class="flex flex-col space-y-4">
+                <a href="#home" class="text-light hover:text-primary transition hover-underline-animation">Home</a>
+                <a href="#about" class="text-light hover:text-primary transition hover-underline-animation">About</a>
+                <a href="#projects" class="text-light hover:text-primary transition hover-underline-animation">Projects</a>
+                <a href="#skills" class="text-light hover:text-primary transition hover-underline-animation">Skills</a>
+                <a href="#contact" class="text-light hover:text-primary transition hover-underline-animation">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section id="home" class="min-h-screen flex items-center relative overflow-hidden">
+        <div class="max-w-7xl mx-auto px-6 py-24 content-wrapper">
+            <div class="flex flex-col lg:flex-row items-center gap-12">
+                <div class="lg:w-1/2">
+                    <h1 class="text-5xl md:text-6xl lg:text-7xl font-bold mb-6 animation-target">
+                        <span class="gradient-text">Innovating</span> Through<br>
+                        <span class="text-light">Code & Creativity</span>
+                    </h1>
+                    <p class="text-xl text-gray-300 mb-8 max-w-2xl animation-target">
+                        I'm Alex Carter, a Computer Science student specializing in AI and full-stack development, crafting digital experiences that push boundaries.
+                    </p>
+                    <div class="flex flex-wrap gap-4 animation-target">
+                        <a href="#projects" class="px-8 py-4 bg-primary rounded-full font-medium hover:bg-primary-dark transition shadow-neon flex items-center gap-2 hover-grow">
+                            <i class="fas fa-rocket"></i> View Projects
+                        </a>
+                        <a href="#contact" class="px-8 py-4 border border-primary text-primary rounded-full font-medium hover:bg-primary hover:text-white transition flex items-center gap-2 hover-grow">
+                            <i class="fas fa-paper-plane"></i> Contact Me
+                        </a>
+                    </div>
+                    
+                    <div class="mt-12 flex items-center gap-6 animation-target">
+                        <div class="flex -space-x-4">
+                            <img src="https://randomuser.me/api/portraits/women/12.jpg" class="w-12 h-12 rounded-full border-2 border-dark hover-grow" alt="Collaborator">
+                            <img src="https://randomuser.me/api/portraits/men/32.jpg" class="w-12 h-12 rounded-full border-2 border-dark hover-grow" alt="Collaborator">
+                            <img src="https://randomuser.me/api/portraits/women/45.jpg" class="w-12 h-12 rounded-full border-2 border-dark hover-grow" alt="Collaborator">
+                        </div>
+                        <div>
+                            <p class="text-gray-400">Collaborated with</p>
+                            <p class="font-medium">50+ Developers Worldwide</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="lg:w-1/2 relative">
+                    <div class="relative w-full max-w-lg mx-auto">
+                        <div class="absolute -top-10 -left-10 w-64 h-64 bg-primary rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob"></div>
+                        <div class="absolute -bottom-10 -right-10 w-64 h-64 bg-secondary rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob animation-delay-4000"></div>
+                        <div class="absolute top-0 left-20 w-64 h-64 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob animation-delay-2000"></div>
+                        
+                        <div class="relative glass-card p-2 rounded-2xl hover-grow animation-target">
+                            <div class="hexagon w-full h-96 bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+                                <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=774&q=80" 
+                                     alt="Alex Carter" 
+                                     class="hexagon w-full h-full object-cover">
+                            </div>
+                        </div>
+                        
+                        <div class="absolute -bottom-6 -right-6 glass-card p-4 rounded-xl shadow-lg hover-grow animation-target">
+                            <lottie-player src="https://assets1.lottiefiles.com/packages/lf20_gn0tojcq.json" background="transparent" speed="1" style="width: 80px; height: 80px;" loop autoplay></lottie-player>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="absolute bottom-10 left-1/2 transform -translate-x-1/2 animate-bounce hover-grow animation-target">
+            <a href="#about" class="text-gray-400 hover:text-primary transition">
+                <i class="fas fa-chevron-down text-2xl"></i>
+            </a>
+        </div>
+    </section>
+
+    <!-- About Section -->
+    <section id="about" class="py-20 relative">
+        <div class="max-w-7xl mx-auto px-6 content-wrapper">
+            <div class="text-center mb-16">
+                <span class="text-primary font-mono text-sm mb-2 animation-target">GET TO KNOW ME</span>
+                <h2 class="text-4xl md:text-5xl font-bold mb-4 animation-target">About <span class="gradient-text">Me</span></h2>
+                <div class="w-20 h-1 bg-gradient-to-r from-primary to-secondary mx-auto animation-target"></div>
+            </div>
+            
+            <div class="flex flex-col lg:flex-row gap-12 items-center">
+                <div class="lg:w-1/3 relative animation-target">
+                    <div class="glass-card p-2 rounded-2xl hover-grow">
+                        <img src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1471&q=80" 
+                             alt="Alex working" 
+                             class="w-full h-auto rounded-xl">
+                    </div>
+                    
+                    <div class="absolute -bottom-6 -left-6 glass-card p-4 rounded-xl shadow-lg w-32 h-32 flex items-center justify-center hover-grow">
+                        <lottie-player src="https://assets1.lottiefiles.com/packages/lf20_ikvz7qhc.json" background="transparent" speed="1" style="width: 100%; height: 100%;" loop autoplay></lottie-player>
+                    </div>
+                </div>
+                
+                <div class="lg:w-2/3">
+                    <h3 class="text-2xl md:text-3xl font-bold mb-6 animation-target">Curious Innovator & Problem Solver</h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <div class="glass-card p-6 rounded-xl hover-grow animation-target">
+                            <div class="flex items-center mb-4">
+                                <div class="w-12 h-12 bg-primary bg-opacity-20 rounded-full flex items-center justify-center mr-4 hover-grow">
+                                    <i class="fas fa-university text-primary text-xl"></i>
+                                </div>
+                                <h4 class="text-lg font-semibold">Stanford University</h4>
+                            </div>
+                            <p class="text-gray-400">B.Sc. Computer Science, AI Specialization (2021-2025)</p>
+                        </div>
+                        
+                        <div class="glass-card p-6 rounded-xl hover-grow animation-target">
+                            <div class="flex items-center mb-4">
+                                <div class="w-12 h-12 bg-secondary bg-opacity-20 rounded-full flex items-center justify-center mr-4 hover-grow">
+                                    <i class="fas fa-briefcase text-secondary text-xl"></i>
+                                </div>
+                                <h4 class="text-lg font-semibold">Tech Internships</h4>
+                            </div>
+                            <p class="text-gray-400">Google, Tesla, and 3 startups</p>
+                        </div>
+                    </div>
+                    
+                    <p class="text-gray-300 mb-6 animation-target">
+                        As a third-year CS student at Stanford, I've immersed myself in cutting-edge technologies, from quantum computing to neural networks. My passion lies at the intersection of AI and human-computer interaction, where I believe we can create transformative experiences.
+                    </p>
+                    <p class="text-gray-300 mb-8 animation-target">
+                        Beyond coursework, I lead the AI research club, mentor first-year students, and contribute to open-source projects. My approach combines rigorous technical skills with design thinking to solve complex problems elegantly.
+                    </p>
+                    
+                    <div class="flex flex-wrap gap-4 animation-target">
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+                            <span>Available for Summer 2024 internships</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Projects Section -->
+    <section id="projects" class="py-20 relative">
+        <div class="max-w-7xl mx-auto px-6 content-wrapper">
+            <div class="text-center mb-16">
+                <span class="text-primary font-mono text-sm mb-2 animation-target">MY WORK</span>
+                <h2 class="text-4xl md:text-5xl font-bold mb-4 animation-target">Featured <span class="gradient-text">Projects</span></h2>
+                <div class="w-20 h-1 bg-gradient-to-r from-primary to-secondary mx-auto animation-target"></div>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8" id="projects-container">
+                <!-- Project 1 -->
+                <div class="project-card glass-card rounded-2xl overflow-hidden animation-target">
+                    <div class="relative h-64 overflow-hidden group">
+                        <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80" 
+                             alt="AI Research Platform" 
+                             class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110">
+                        <div class="absolute inset-0 bg-gradient-to-t from-dark to-transparent opacity-90"></div>
+                        <div class="absolute bottom-0 left-0 p-6">
+                            <h3 class="text-2xl font-bold mb-2">NeuroSync AI</h3>
+                            <p class="text-gray-300">Collaborative platform for AI research</p>
+                        </div>
+                    </div>
+                    <div class="p-6">
+                        <p class="text-gray-400 mb-6">
+                            A distributed platform enabling researchers to share datasets, models, and findings with version control and reproducibility features.
+                        </p>
+                        <div class="flex flex-wrap gap-2 mb-6">
+                            <span class="skill-pill bg-blue-900 bg-opacity-50 text-blue-400 px-4 py-2 rounded-full hover:bg-blue-800">Python</span>
+                            <span class="skill-pill bg-green-900 bg-opacity-50 text-green-400 px-4 py-2 rounded-full hover:bg-green-800">TensorFlow</span>
+                            <span class="skill-pill bg-purple-900 bg-opacity-50 text-purple-400 px-4 py-2 rounded-full hover:bg-purple-800">React</span>
+                            <span class="skill-pill bg-yellow-900 bg-opacity-50 text-yellow-400 px-4 py-2 rounded-full hover:bg-yellow-800">GraphQL</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <a href="#" class="text-primary hover-underline-animation flex items-center">
+                                Case Study <i class="fas fa-arrow-right ml-2"></i>
+                            </a>
+                            <a href="#" class="text-gray-400 hover:text-primary hover-grow">
+                                <i class="fab fa-github text-xl"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Project 2 -->
+                <div class="project-card glass-card rounded-2xl overflow-hidden animation-target">
+                    <div class="relative h-64 overflow-hidden group">
+                        <img src="https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80" 
+                             alt="Campus Navigation App" 
+                             class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110">
+                        <div class="absolute inset-0 bg-gradient-to-t from-dark to-transparent opacity-90"></div>
+                        <div class="absolute bottom-0 left-0 p-6">
+                            <h3 class="text-2xl font-bold mb-2">CampusAR</h3>
+                            <p class="text-gray-300">Augmented reality campus navigation</p>
+                        </div>
+                    </div>
+                    <div class="p-6">
+                        <p class="text-gray-400 mb-6">
+                            AR-powered navigation system with indoor mapping, class schedules integration, and accessibility features for university campuses.
+                        </p>
+                        <div class="flex flex-wrap gap-2 mb-6">
+                            <span class="skill-pill bg-yellow-900 bg-opacity-50 text-yellow-400 px-4 py-2 rounded-full hover:bg-yellow-800">Swift</span>
+                            <span class="skill-pill bg-pink-900 bg-opacity-50 text-pink-400 px-4 py-2 rounded-full hover:bg-pink-800">ARKit</span>
+                            <span class="skill-pill bg-red-900 bg-opacity-50 text-red-400 px-4 py-2 rounded-full hover:bg-red-800">Node.js</span>
+                            <span class="skill-pill bg-indigo-900 bg-opacity-50 text-indigo-400 px-4 py-2 rounded-full hover:bg-indigo-800">MongoDB</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <a href="#" class="text-primary hover-underline-animation flex items-center">
+                                Case Study <i class="fas fa-arrow-right ml-2"></i>
+                            </a>
+                            <a href="#" class="text-gray-400 hover:text-primary hover-grow">
+                                <i class="fab fa-github text-xl"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-center mt-12 animation-target">
+                <a href="#" class="inline-flex items-center px-6 py-3 border border-primary text-primary rounded-full font-medium hover:bg-primary hover:text-white transition hover-grow">
+                    View All Projects <i class="fas fa-chevron-right ml-2"></i>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Skills Section -->
+    <section id="skills" class="py-20 relative">
+        <div class="max-w-7xl mx-auto px-6 content-wrapper">
+            <div class="text-center mb-16">
+                <span class="text-primary font-mono text-sm mb-2 animation-target">MY CAPABILITIES</span>
+                <h2 class="text-4xl md:text-5xl font-bold mb-4 animation-target">Technical <span class="gradient-text">Skills</span></h2>
+                <div class="w-20 h-1 bg-gradient-to-r from-primary to-secondary mx-auto animation-target"></div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12" id="skills-container">
+                <!-- Skill Category 1 -->
+                <div class="glass-card p-6 rounded-xl hover-grow animation-target">
+                    <div class="flex items-center mb-6">
+                        <div class="w-14 h-14 bg-primary bg-opacity-20 rounded-xl flex items-center justify-center mr-4 hover-grow">
+                            <i class="fas fa-laptop-code text-primary text-2xl"></i>
+                        </div>
+                        <h3 class="text-xl font-bold">Frontend Development</h3>
+                    </div>
+                    <div class="flex flex-wrap gap-3">
+                        <span class="skill-pill bg-blue-900 bg-opacity-50 text-blue-400 px-4 py-2 rounded-full hover:bg-blue-800">React</span>
+                        <span class="skill-pill bg-green-900 bg-opacity-50 text-green-400 px-4 py-2 rounded-full hover:bg-green-800">Vue.js</span>
+                        <span class="skill-pill bg-yellow-900 bg-opacity-50 text-yellow-400 px-4 py-2 rounded-full hover:bg-yellow-800">TypeScript</span>
+                        <span class="skill-pill bg-purple-900 bg-opacity-50 text-purple-400 px-4 py-2 rounded-full hover:bg-purple-800">Tailwind</span>
+                        <span class="skill-pill bg-red-900 bg-opacity-50 text-red-400 px-4 py-2 rounded-full hover:bg-red-800">SASS</span>
+                        <span class="skill-pill bg-indigo-900 bg-opacity-50 text-indigo-400 px-4 py-2 rounded-full hover:bg-indigo-800">Three.js</span>
+                    </div>
+                </div>
+                
+                <!-- Skill Category 2 -->
+                <div class="glass-card p-6 rounded-xl hover-grow animation-target">
+                    <div class="flex items-center mb-6">
+                        <div class="w-14 h-14 bg-secondary bg-opacity-20 rounded-xl flex items-center justify-center mr-4 hover-grow">
+                            <i class="fas fa-server text-secondary text-2xl"></i>
+                        </div>
+                        <h3 class="text-xl font-bold">Backend & DevOps</h3>
+                    </div>
+                    <div class="flex flex-wrap gap-3">
+                        <span class="skill-pill bg-blue-900 bg-opacity-50 text-blue-400 px-4 py-2 rounded-full hover:bg-blue-800">Node.js</span>
+                        <span class="skill-pill bg-green-900 bg-opacity-50 text-green-400 px-4 py-2 rounded-full hover:bg-green-800">Python</span>
+                        <span class="skill-pill bg-yellow-900 bg-opacity-50 text-yellow-400 px-4 py-2 rounded-full hover:bg-yellow-800">Docker</span>
+                        <span class="skill-pill bg-purple-900 bg-opacity-50 text-purple-400 px-4 py-2 rounded-full hover:bg-purple-800">Kubernetes</span>
+                        <span class="skill-pill bg-red-900 bg-opacity-50 text-red-400 px-4 py-2 rounded-full hover:bg-red-800">AWS</span>
+                        <span class="skill-pill bg-indigo-900 bg-opacity-50 text-indigo-400 px-4 py-2 rounded-full hover:bg-indigo-800">GraphQL</span>
+                    </div>
+                </div>
+                
+                <!-- Skill Category 3 -->
+                <div class="glass-card p-6 rounded-xl hover-grow animation-target">
+                    <div class="flex items-center mb-6">
+                        <div class="w-14 h-14 bg-purple-500 bg-opacity-20 rounded-xl flex items-center justify-center mr-4 hover-grow">
+                            <i class="fas fa-brain text-purple-400 text-2xl"></i>
+                        </div>
+                        <h3 class="text-xl font-bold">AI/ML</h3>
+                    </div>
+                    <div class="flex flex-wrap gap-3">
+                        <span class="skill-pill bg-blue-900 bg-opacity-50 text-blue-400 px-4 py-2 rounded-full hover:bg-blue-800">TensorFlow</span>
+                        <span class="skill-pill bg-green-900 bg-opacity-50 text-green-400 px-4 py-2 rounded-full hover:bg-green-800">PyTorch</span>
+                        <span class="skill-pill bg-yellow-900 bg-opacity-50 text-yellow-400 px-4 py-2 rounded-full hover:bg-yellow-800">OpenCV</span>
+                        <span class="skill-pill bg-purple-900 bg-opacity-50 text-purple-400 px-4 py-2 rounded-full hover:bg-purple-800">NLP</span>
+                        <span class="skill-pill bg-red-900 bg-opacity-50 text-red-400 px-4 py-2 rounded-full hover:bg-red-800">Computer Vision</span>
+                        <span class="skill-pill bg-indigo-900 bg-opacity-50 text-indigo-400 px-4 py-2 rounded-full hover:bg-indigo-800">Reinforcement Learning</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="glass-card p-8 rounded-xl hover-grow animation-target">
+                <div class="flex flex-col md:flex-row items-center gap-8">
+                    <div class="md:w-1/3 flex justify-center">
+                        <lottie-player src="https://assets10.lottiefiles.com/packages/lf20_3rwasyjy.json" background="transparent" speed="1" style="width: 200px; height: 200px;" loop autoplay></lottie-player>
+                    </div>
+                    <div class="md:w-2/3">
+                        <h3 class="text-2xl font-bold mb-4">Continuous Learning Journey</h3>
+                        <p class="text-gray-400 mb-6">
+                            Technology evolves rapidly, and so do I. I dedicate 10+ hours weekly to mastering new frameworks, tools, and paradigms. Currently diving deep into Quantum Computing and Web3 development.
+                        </p>
+                        <div class="w-full bg-gray-800 rounded-full h-2.5">
+                            <div class="bg-gradient-to-r from-primary to-secondary h-2.5 rounded-full" style="width: 85%"></div>
+                        </div>
+                        <div class="flex justify-between text-sm text-gray-500 mt-2">
+                            <span>Current focus: Web3 Development</span>
+                            <span>85%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section id="contact" class="py-20 relative">
+        <div class="max-w-7xl mx-auto px-6 content-wrapper">
+            <div class="text-center mb-16">
+                <span class="text-primary font-mono text-sm mb-2 animation-target">GET IN TOUCH</span>
+                <h2 class="text-4xl md:text-5xl font-bold mb-4 animation-target">Contact <span class="gradient-text">Me</span></h2>
+                <div class="w-20 h-1 bg-gradient-to-r from-primary to-secondary mx-auto animation-target"></div>
+            </div>
+            
+            <div class="glass-card rounded-2xl overflow-hidden hover-grow animation-target">
+                <div class="flex flex-col lg:flex-row">
+                    <div class="lg:w-1/2 p-8 md:p-12">
+                        <h3 class="text-2xl font-bold mb-6">Let's Build Something Amazing</h3>
+                        <p class="text-gray-400 mb-8">
+                            Whether you have a project in mind, want to collaborate, or just want to chat about tech, I'd love to hear from you!
+                        </p>
+                        
+                        <div class="space-y-6 mb-8">
+                            <div class="flex items-start">
+                                <div class="w-12 h-12 bg-primary bg-opacity-20 rounded-full flex items-center justify-center mr-4 hover-grow">
+                                    <i class="fas fa-envelope text-primary"></i>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold">Email</h4>
+                                    <a href="mailto:alex.carter@example.com" class="text-gray-400 hover:text-primary transition hover-underline-animation">alex.carter@example.com</a>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-start">
+                                <div class="w-12 h-12 bg-secondary bg-opacity-20 rounded-full flex items-center justify-center mr-4 hover-grow">
+                                    <i class="fas fa-phone-alt text-secondary"></i>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold">Phone</h4>
+                                    <a href="tel:+1234567890" class="text-gray-400 hover:text-primary transition hover-underline-animation">+1 (234) 567-890</a>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-start">
+                                <div class="w-12 h-12 bg-purple-500 bg-opacity-20 rounded-full flex items-center justify-center mr-4 hover-grow">
+                                    <i class="fas fa-map-marker-alt text-purple-400"></i>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold">Location</h4>
+                                    <p class="text-gray-400">Stanford, California</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-8">
+                            <h4 class="font-semibold mb-4">Follow Me</h4>
+                            <div class="flex space-x-4">
+                                <a href="#" class="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center text-gray-400 hover:text-white hover:bg-blue-600 transition hover-grow">
+                                    <i class="fab fa-linkedin-in text-xl"></i>
+                                </a>
+                                <a href="#" class="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition hover-grow">
+                                    <i class="fab fa-github text-xl"></i>
+                                </a>
+                                <a href="#" class="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center text-gray-400 hover:text-white hover:bg-blue-400 transition hover-grow">
+                                    <i class="fab fa-twitter text-xl"></i>
+                                </a>
+                                <a href="#" class="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center text-gray-400 hover:text-white hover:bg-pink-500 transition hover-grow">
+                                    <i class="fab fa-dribbble text-xl"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="lg:w-1/2 bg-gray-900 p-8 md:p-12">
+                        <form class="space-y-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label for="name" class="block text-gray-400 mb-2">Name</label>
+                                    <input type="text" id="name" class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent hover:border-primary transition">
+                                </div>
+                                <div>
+                                    <label for="email" class="block text-gray-400 mb-2">Email</label>
+                                    <input type="email" id="email" class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent hover:border-primary transition">
+                                </div>
+                            </div>
+                            <div>
+                                <label for="subject" class="block text-gray-400 mb-2">Subject</label>
+                                <input type="text" id="subject" class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent hover:border-primary transition">
+                            </div>
+                            <div>
+                                <label for="message" class="block text-gray-400 mb-2">Message</label>
+                                <textarea id="message" rows="5" class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent hover:border-primary transition"></textarea>
+                            </div>
+                            <button type="submit" class="w-full bg-primary hover:bg-primary-dark text-white px-6 py-4 rounded-lg font-medium transition shadow-neon flex items-center justify-center gap-2 hover-grow">
+                                <i class="fas fa-paper-plane"></i> Send Message
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-12 border-t border-gray-800">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="mb-6 md:mb-0">
+                    <a href="#" class="text-2xl font-bold gradient-text hover-underline-animation">AC</a>
+                    <p class="text-gray-500 mt-2">Innovating at the intersection of technology and design</p>
+                </div>
+                <div class="flex space-x-6">
+                    <a href="#home" class="text-gray-500 hover:text-primary transition hover-underline-animation">Home</a>
+                    <a href="#about" class="text-gray-500 hover:text-primary transition hover-underline-animation">About</a>
+                    <a href="#projects" class="text-gray-500 hover:text-primary transition hover-underline-animation">Projects</a>
+                    <a href="#contact" class="text-gray-500 hover:text-primary transition hover-underline-animation">Contact</a>
+                </div>
+            </div>
+            <div class="border-t border-gray-800 mt-8 pt-8 text-center text-gray-500">
+                <p>&copy; 2023 Alex Carter. All rights reserved. Crafted with <i class="fas fa-heart text-red-500 hover:text-red-400 transition"></i> and <i class="fas fa-coffee text-yellow-500 hover:text-yellow-400 transition"></i></p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Initialize GSAP and plugins
+        gsap.registerPlugin(ScrollTrigger, ScrollToPlugin, Draggable, MotionPathPlugin);
+        
+        // Mobile menu toggle
+        const menuBtn = document.getElementById('menu-btn');
+        const mobileMenu = document.getElementById('mobile-menu');
+        
+        menuBtn.addEventListener('click', () => {
+            mobileMenu.classList.toggle('hidden');
+            gsap.from(mobileMenu, {
+                duration: 0.3,
+                opacity: 0,
+                y: -20,
+                ease: "power2.out"
+            });
+        });
+        
+        // Close mobile menu when clicking on a link
+        document.querySelectorAll('#mobile-menu a').forEach(link => {
+            link.addEventListener('click', () => {
+                mobileMenu.classList.add('hidden');
+            });
+        });
+        
+        // Smooth scrolling for all links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                
+                const targetId = this.getAttribute('href');
+                if (targetId === '#') return;
+                
+                const targetElement = document.querySelector(targetId);
+                if (targetElement) {
+                    gsap.to(window, {
+                        duration: 1,
+                        scrollTo: {
+                            y: targetElement,
+                            offsetY: 100
+                        },
+                        ease: "power2.inOut"
+                    });
+                }
+            });
+        });
+        
+        // Master Timeline for Hero Section
+        const heroTimeline = gsap.timeline();
+        
+        heroTimeline.from(".gradient-text", {
+            duration: 1.5,
+            opacity: 0,
+            y: 50,
+            ease: "power3.out",
+            stagger: 0.1
+        })
+        .from(".text-light", {
+            duration: 1,
+            opacity: 0,
+            y: 30,
+            ease: "back.out(1.7)"
+        }, "-=1")
+        .from(".text-xl", {
+            duration: 0.8,
+            opacity: 0,
+            y: 20,
+            ease: "power2.out"
+        }, "-=0.8")
+        .from(".flex.gap-4 a", {
+            duration: 0.6,
+            opacity: 0,
+            y: 20,
+            ease: "back.out(1.7)",
+            stagger: 0.1
+        }, "-=0.5")
+        .from(".flex.items-center.gap-6", {
+            duration: 0.8,
+            opacity: 0,
+            y: 20,
+            ease: "power2.out"
+        }, "-=0.4")
+        .from(".hexagon", {
+            duration: 1.2,
+            opacity: 0,
+            scale: 0.8,
+            rotate: 10,
+            ease: "elastic.out(1, 0.5)"
+        }, "-=1");
+        
+        // Section Animations with ScrollTrigger
+        gsap.utils.toArray("section").forEach((section, i) => {
+            const heading = section.querySelector("h2");
+            const divider = section.querySelector(".w-20");
+            const content = section.querySelectorAll(".animation-target");
+            
+            if (heading && divider) {
+                gsap.from([heading, divider], {
+                    scrollTrigger: {
+                        trigger: section,
+                        start: "top 80%",
+                        toggleActions: "play none none none"
+                    },
+                    duration: 1,
+                    opacity: 0,
+                    y: 50,
+                    stagger: 0.2,
+                    ease: "back.out(1.7)"
+                });
+            }
+            
+            if (content.length > 0) {
+                gsap.from(content, {
+                    scrollTrigger: {
+                        trigger: section,
+                        start: "top 80%",
+                        toggleActions: "play none none none"
+                    },
+                    duration: 0.8,
+                    opacity: 0,
+                    y: 30,
+                    stagger: 0.1,
+                    ease: "power2.out"
+                });
+            }
+        });
+        
+        // Project Cards Animation
+        gsap.utils.toArray(".project-card").forEach((card, i) => {
+            gsap.from(card, {
+                scrollTrigger: {
+                    trigger: card,
+                    start: "top 80%",
+                    toggleActions: "play none none none"
+                },
+                duration: 0.8,
+                opacity: 0,
+                y: 50,
+                rotateY: i % 2 === 0 ? -15 : 15,
+                ease: "back.out(1.7)",
+                delay: i * 0.1
+            });
+        });
+        
+        // Skills Cards Animation
+        gsap.utils.toArray("#skills-container .glass-card").forEach((card, i) => {
+            gsap.from(card, {
+                scrollTrigger: {
+                    trigger: card,
+                    start: "top 80%",
+                    toggleActions: "play none none none"
+                },
+                duration: 0.8,
+                opacity: 0,
+                x: i % 2 === 0 ? -50 : 50,
+                ease: "back.out(1.7)",
+                delay: i * 0.1
+            });
+        });
+        
+        // Contact Form Animation
+        gsap.from(".lg\\:w-1\\/2.bg-gray-900", {
+            scrollTrigger: {
+                trigger: "#contact",
+                start: "top 80%",
+                toggleActions: "play none none none"
+            },
+            duration: 1,
+            opacity: 0,
+            x: 50,
+            ease: "power2.out"
+        });
+        
+        // Floating Blob Animation
+        const blobs = gsap.utils.toArray(".animate-blob");
+        blobs.forEach(blob => {
+            gsap.to(blob, {
+                duration: 20 + Math.random() * 10,
+                x: "+=100",
+                y: "+=50",
+                rotation: "+=360",
+                ease: "none",
+                repeat: -1,
+                yoyo: true
+            });
+        });
+        
+        // Interactive Hover Effects
+        const hoverGrowElements = gsap.utils.toArray(".hover-grow");
+        hoverGrowElements.forEach(el => {
+            el.addEventListener("mouseenter", () => {
+                gsap.to(el, {
+                    duration: 0.3,
+                    scale: 1.05,
+                    ease: "power2.out"
+                });
+            });
+            
+            el.addEventListener("mouseleave", () => {
+                gsap.to(el, {
+                    duration: 0.3,
+                    scale: 1,
+                    ease: "power2.out"
+                });
+            });
+        });
+        
+        // Background Animation
+        const bgAnimation = gsap.to(".gradient-bg", {
+            duration: 15,
+            backgroundPosition: "100% 50%",
+            ease: "none",
+            repeat: -1,
+            yoyo: true
+        });
+    </script>
+</body>
+</html>
