@@ -1,30 +1,81 @@
-import { Link, router } from "expo-router";
+import { Link } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { useTheme } from "../providers/ThemeProvider";
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from "react-native";
+import { useAuth } from "../../providers/AuthProvider";
+import { useTheme } from "../../providers/ThemeProvider";
+import { validateEmail } from "../../utils/validation";
 
 export default function Login() {
   const { effectiveTheme } = useTheme();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [userType, setUserType] = useState("user"); // "user" or "agent"
+  const [userType, setUserType] = useState<"user" | "agent">("user");
   const [agentId, setAgentId] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<{ email?: string; password?: string; agentId?: string }>({});
 
-  const handleLogin = () => {
+  const validateForm = (): boolean => {
+    const newErrors: { email?: string; password?: string; agentId?: string } = {};
+
+    if (!validateEmail(email)) {
+      newErrors.email = "Please enter a valid email address";
+    }
+
+    if (!password) {
+      newErrors.password = "Password is required";
+    }
+
+    if (userType === "agent" && !agentId.trim()) {
+      newErrors.agentId = "Agent ID is required";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleLogin = async () => {
+    if (!validateForm()) return;
+
     setIsLoading(true);
-    // TODO: Integrate Django auth API
-    console.log("Logging in with:", { email, password, userType, agentId });
-    setTimeout(() => {
+    try {
+      // Prepare login data
+      const loginData: any = {
+        email,
+        password
+      };
+
+      // Add agent_id if user is an agent
+      if (userType === "agent") {
+        loginData.agent_id = agentId;
+      }
+
+      await login(loginData);
+      
+      // The redirect is now handled in the AuthProvider based on user type
+    } catch (error: any) {
+      Alert.alert("Login Failed", error.message || "Something went wrong");
+    } finally {
       setIsLoading(false);
-      router.replace("/(user)"); // Redirect after login
-    }, 1500);
+    }
   };
 
   return (
-    <View className="flex-1 bg-background p-6">
+    <ScrollView 
+      className="flex-1 bg-background"
+      contentContainerStyle={{ padding: 24 }}
+      keyboardShouldPersistTaps="handled"
+    >
       {/* Header */}
-      <View className="mt-16 mb-12">
+      <View className="mt-8 mb-12">
         <Text className="text-headline text-on-surface">Welcome Back</Text>
         <Text className="text-body text-on-surface-variant mt-2">
           Sign in to your Aegis safety account
@@ -43,7 +94,11 @@ export default function Login() {
                   ? "bg-primary border-primary" 
                   : "bg-surface-variant border-outline"
               }`}
-              onPress={() => setUserType("user")}
+              onPress={() => {
+                setUserType("user");
+                setAgentId("");
+                setErrors(prev => ({ ...prev, agentId: undefined }));
+              }}
               disabled={isLoading}
             >
               <Text 
@@ -79,42 +134,72 @@ export default function Login() {
           <View>
             <Text className="text-label text-on-surface-variant mb-2">Agent ID</Text>
             <TextInput
-              className="bg-surface-variant rounded-xl p-4 text-on-surface-variant border border-outline"
+              className={`bg-surface-variant rounded-xl p-4 text-on-surface border ${
+                errors.agentId ? "border-error" : "border-outline"
+              }`}
               placeholder="Enter your agent ID"
               placeholderTextColor="rgb(var(--color-on-surface-variant))"
               value={agentId}
-              onChangeText={setAgentId}
+              onChangeText={(text) => {
+                setAgentId(text);
+                if (errors.agentId) {
+                  setErrors(prev => ({ ...prev, agentId: undefined }));
+                }
+              }}
               autoCapitalize="none"
               editable={!isLoading}
             />
+            {errors.agentId && (
+              <Text className="text-error text-sm mt-1">{errors.agentId}</Text>
+            )}
           </View>
         )}
 
         <View>
           <Text className="text-label text-on-surface-variant mb-2">Email</Text>
           <TextInput
-            className="bg-surface-variant rounded-xl p-4 text-on-surface-variant border border-outline"
+            className={`bg-surface-variant rounded-xl p-4 text-on-surface border ${
+              errors.email ? "border-error" : "border-outline"
+            }`}
             placeholder="Enter your email"
             placeholderTextColor="rgb(var(--color-on-surface-variant))"
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(text) => {
+              setEmail(text);
+              if (errors.email) {
+                setErrors(prev => ({ ...prev, email: undefined }));
+              }
+            }}
             keyboardType="email-address"
             autoCapitalize="none"
             editable={!isLoading}
           />
+          {errors.email && (
+            <Text className="text-error text-sm mt-1">{errors.email}</Text>
+          )}
         </View>
 
         <View>
           <Text className="text-label text-on-surface-variant mb-2">Password</Text>
           <TextInput
-            className="bg-surface-variant rounded-xl p-4 text-on-surface border border-outline"
+            className={`bg-surface-variant rounded-xl p-4 text-on-surface border ${
+              errors.password ? "border-error" : "border-outline"
+            }`}
             placeholder="••••••••"
             placeholderTextColor="rgb(var(--color-on-surface-variant))"
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(text) => {
+              setPassword(text);
+              if (errors.password) {
+                setErrors(prev => ({ ...prev, password: undefined }));
+              }
+            }}
             secureTextEntry
             editable={!isLoading}
           />
+          {errors.password && (
+            <Text className="text-error text-sm mt-1">{errors.password}</Text>
+          )}
         </View>
 
         <TouchableOpacity
@@ -126,7 +211,7 @@ export default function Login() {
           {isLoading ? (
             <View className="flex-row justify-center items-center space-x-2">
               <ActivityIndicator size="small" color="white" />
-              <Text className="text-on-primary font-bold text-lg">Securing Your Account...</Text>
+              <Text className="text-on-primary font-bold text-lg">Logging Your Account...</Text>
             </View>
           ) : (
             <Text className="text-on-primary text-center font-bold text-lg">Login</Text>
@@ -137,16 +222,22 @@ export default function Login() {
       {/* Footer Links */}
       <View className="flex-row justify-between mt-8">
         <Link href="/forgot-password" asChild>
-          <TouchableOpacity className="active:bg-hover rounded px-2 py-1">
+          <TouchableOpacity 
+            className="active:bg-hover rounded px-2 py-1"
+            disabled={isLoading}
+          >
             <Text className="text-accent font-medium">Forgot Password?</Text>
           </TouchableOpacity>
         </Link>
         <Link href="/signup" asChild>
-          <TouchableOpacity className="active:bg-hover rounded px-2 py-1">
+          <TouchableOpacity 
+            className="active:bg-hover rounded px-2 py-1"
+            disabled={isLoading}
+          >
             <Text className="text-secondary font-medium">Create Account</Text>
           </TouchableOpacity>
         </Link>
       </View>
-    </View>
+    </ScrollView>
   );
 }

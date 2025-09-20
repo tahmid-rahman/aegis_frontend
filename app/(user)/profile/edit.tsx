@@ -1,29 +1,89 @@
 // app/user/profile-edit.tsx
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '../../../providers/ThemeProvider';
+import { api } from '../../../services/api';
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  gender: string;
+  phone: string;
+  id_type: string;
+  id_number: string;
+  dob: string;
+  user_type: string;
+  blood_group?: string;
+  address?: string;
+  emergency_medical_note?: string;
+}
 
 export default function EditProfile() {
   const router = useRouter();
   const { effectiveTheme } = useTheme();
   
-  const [userData, setUserData] = useState({
-    name: 'Sarah Ahmed',
-    phone: '+880 1712 345678',
-    email: 'sarah.ahmed@example.com',
-    nidNumber: '1990123456789',
-    dateOfBirth: new Date(1990, 5, 15), // June 15, 1990
-    gender: 'female',
-    bloodGroup: 'A+',
-    address: '123 Main Street, Dhaka',
-    emergencyNotes: 'Has asthma, carries inhaler',
+  const [userData, setUserData] = useState<User>({
+    id: '',
+    name: '',
+    email: '',
+    gender: 'male',
+    phone: '',
+    id_type: 'nid',
+    id_number: '',
+    dob: '',
+    user_type: 'user',
+    blood_group: '',
+    address: '',
+    emergency_medical_note: ''
   });
 
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [originalData, setOriginalData] = useState<User | null>(null);
+
+  // Fetch user data on component mount
+  useEffect(() => {
+    fetchUserProfile();
+  }, []);
+
+  const fetchUserProfile = async () => {
+    try {
+      setLoading(true);
+      
+      // Get token from AsyncStorage
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      
+      // Set authorization header
+      api.defaults.headers.Authorization = `Token ${token}`;
+      
+      // Fetch user profile from API
+      const response = await api.get('/auth/profile/');
+      const user = response.data;
+      
+      setUserData(user);
+      setOriginalData(user);
+      
+    } catch (error: any) {
+      console.error('Error fetching profile:', error);
+      Alert.alert('Error', 'Failed to load profile data. Please try again.');
+      
+      // If unauthorized, redirect to login
+      if (error.response?.status === 401) {
+        router.replace('/login');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleInputChange = (field: string, value: string | Date) => {
     setUserData(prev => ({
@@ -32,17 +92,38 @@ export default function EditProfile() {
     }));
   };
 
-  const handleSave = () => {
-    setIsSaving(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsSaving(false);
+  const handleSave = async () => {
+    try {
+      setIsSaving(true);
+      
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      
+      api.defaults.headers.Authorization = `Token ${token}`;
+      
+      // Prepare data for API (convert Date object to string if needed)
+      const dataToSend = {
+        ...userData,
+        dob: userData.dob instanceof Date ? userData.dob.toISOString().split('T')[0] : userData.dob
+      };
+      
+      // Update user profile via API
+      const response = await api.put('/auth/profile/', dataToSend);
+      
       Alert.alert(
         "Success", 
         "Your profile has been updated successfully",
         [{ text: "OK", onPress: () => router.back() }]
       );
-    }, 1500);
+      
+    } catch (error: any) {
+      console.error('Error updating profile:', error);
+      Alert.alert('Error', error.response?.data?.message || 'Failed to update profile. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCancel = () => {
@@ -61,26 +142,35 @@ export default function EditProfile() {
   };
 
   const hasChanges = () => {
-    // This would compare with original data in a real app
-    return true;
+    if (!originalData) return false;
+    
+    return JSON.stringify(userData) !== JSON.stringify(originalData);
   };
 
   const onDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(false);
     if (selectedDate) {
-      handleInputChange('dateOfBirth', selectedDate);
+      handleInputChange('dob', selectedDate.toISOString().split('T')[0]);
     }
   };
 
   const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
-  const genders = ['male', 'female', 'other', 'prefer_not_to_say'];
+  const genders = ['male', 'female', 'other'];
+  const idTypes = ['nid', 'birth'];
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'Select date of birth';
+    
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch {
+      return 'Select date of birth';
+    }
   };
 
   const formatGender = (gender: string) => {
@@ -88,10 +178,26 @@ export default function EditProfile() {
       male: 'Male',
       female: 'Female',
       other: 'Other',
-      prefer_not_to_say: 'Prefer not to say'
     };
     return genderMap[gender] || gender;
   };
+
+  const formatIdType = (idType: string) => {
+    const idTypeMap: { [key: string]: string } = {
+      nid: 'National ID (NID)',
+      birth: 'Birth Certificate',
+    };
+    return idTypeMap[idType] || idType;
+  };
+
+  if (loading) {
+    return (
+      <View className="flex-1 bg-background items-center justify-center">
+        <ActivityIndicator size="large" color={effectiveTheme === 'dark' ? '#fff' : '#000'} />
+        <Text className="text-on-surface mt-4">Loading profile...</Text>
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView 
@@ -148,17 +254,41 @@ export default function EditProfile() {
                 placeholderTextColor="rgb(var(--color-on-surface-variant))"
                 keyboardType="email-address"
                 autoCapitalize="none"
+                editable={false} // Email should not be editable usually
+                style={{ opacity: 0.7 }}
               />
             </View>
 
-            {/* NID Number */}
+            {/* ID Type Selection */}
             <View className="mb-5">
-              <Text className="text-label text-on-surface-variant mb-2">NID Number</Text>
+              <Text className="text-label text-on-surface-variant mb-2">ID Type</Text>
+              <View className="bg-surface rounded-xl border border-outline">
+                <Picker
+                  selectedValue={userData.id_type}
+                  onValueChange={(value) => handleInputChange('id_type', value)}
+                  dropdownIconColor="rgb(var(--color-on-surface-variant))"
+                >
+                  {idTypes.map((idType) => (
+                    <Picker.Item 
+                      key={idType} 
+                      label={formatIdType(idType)} 
+                      value={idType} 
+                    />
+                  ))}
+                </Picker>
+              </View>
+            </View>
+
+            {/* ID Number */}
+            <View className="mb-5">
+              <Text className="text-label text-on-surface-variant mb-2">
+                {userData.id_type === 'nid' ? 'NID Number' : 'Birth Certificate Number'}
+              </Text>
               <TextInput
                 className="bg-surface rounded-xl p-4 text-on-surface border border-outline"
-                value={userData.nidNumber}
-                onChangeText={(text) => handleInputChange('nidNumber', text)}
-                placeholder="Enter NID number"
+                value={userData.id_number}
+                onChangeText={(text) => handleInputChange('id_number', text)}
+                placeholder={userData.id_type === 'nid' ? 'Enter NID number' : 'Enter birth certificate number'}
                 placeholderTextColor="rgb(var(--color-on-surface-variant))"
                 keyboardType="numeric"
               />
@@ -171,11 +301,11 @@ export default function EditProfile() {
                 className="bg-surface rounded-xl p-4 border border-outline"
                 onPress={() => setShowDatePicker(true)}
               >
-                <Text className="text-on-surface">{formatDate(userData.dateOfBirth)}</Text>
+                <Text className="text-on-surface">{formatDate(userData.dob)}</Text>
               </TouchableOpacity>
               {showDatePicker && (
                 <DateTimePicker
-                  value={userData.dateOfBirth}
+                  value={userData.dob ? new Date(userData.dob) : new Date()}
                   mode="date"
                   display="default"
                   onChange={onDateChange}
@@ -209,10 +339,11 @@ export default function EditProfile() {
               <Text className="text-label text-on-surface-variant mb-2">Blood Group</Text>
               <View className="bg-surface rounded-xl border border-outline">
                 <Picker
-                  selectedValue={userData.bloodGroup}
-                  onValueChange={(value) => handleInputChange('bloodGroup', value)}
+                  selectedValue={userData.blood_group || ''}
+                  onValueChange={(value) => handleInputChange('blood_group', value)}
                   dropdownIconColor="rgb(var(--color-on-surface-variant))"
                 >
+                  <Picker.Item label="Select blood group" value="" />
                   {bloodGroups.map((group) => (
                     <Picker.Item 
                       key={group} 
@@ -229,7 +360,7 @@ export default function EditProfile() {
               <Text className="text-label text-on-surface-variant mb-2">Address</Text>
               <TextInput
                 className="bg-surface rounded-xl p-4 text-on-surface border border-outline"
-                value={userData.address}
+                value={userData.address || ''}
                 onChangeText={(text) => handleInputChange('address', text)}
                 placeholder="Enter your address"
                 placeholderTextColor="rgb(var(--color-on-surface-variant))"
@@ -239,7 +370,7 @@ export default function EditProfile() {
               />
             </View>
 
-            {/* Emergency Notes */}
+            {/* Emergency Medical Notes */}
             <View className="mb-5">
               <Text className="text-label text-on-surface-variant mb-2">
                 Emergency Medical Notes
@@ -247,8 +378,8 @@ export default function EditProfile() {
               </Text>
               <TextInput
                 className="bg-surface rounded-xl p-4 text-on-surface border border-outline"
-                value={userData.emergencyNotes}
-                onChangeText={(text) => handleInputChange('emergencyNotes', text)}
+                value={userData.emergency_medical_note || ''}
+                onChangeText={(text) => handleInputChange('emergency_medical_note', text)}
                 placeholder="Any medical conditions, allergies, or important information for emergency responders"
                 placeholderTextColor="rgb(var(--color-on-surface-variant))"
                 multiline
@@ -273,7 +404,8 @@ export default function EditProfile() {
             <TouchableOpacity
               className="bg-primary py-4 rounded-xl flex-1"
               onPress={handleSave}
-              disabled={isSaving}
+              disabled={isSaving || !hasChanges()}
+              style={{ opacity: isSaving || !hasChanges() ? 0.5 : 1 }}
             >
               <Text className="text-on-primary text-center font-semibold">
                 {isSaving ? "Saving..." : "Save Changes"}

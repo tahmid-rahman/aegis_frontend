@@ -21,7 +21,7 @@ export default function BottomNav() {
     {
       name: "Home",
       icon: Home,
-      route: "/home" as Href,
+      route: "/" as Href,
     },
     {
       name: "Learn",
@@ -31,7 +31,7 @@ export default function BottomNav() {
     {
       name: "Panic",
       icon: ShieldAlert,
-      route: "/panic-confirm" as Href,
+      route: "/panic-active" as Href,
       isCentral: true,
     },
     {

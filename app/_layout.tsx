@@ -2,6 +2,7 @@ import { Slot } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import "../global.css";
+import { AuthProvider } from "../providers/AuthProvider";
 import { ThemeProvider, useTheme } from "../providers/ThemeProvider";
 
 function MainLayout() {
@@ -17,7 +18,9 @@ function MainLayout() {
 export default function Layout() {
   return (
     <ThemeProvider>
-      <MainLayout />
+      <AuthProvider>
+        <MainLayout />
+      </AuthProvider>
     </ThemeProvider>
   );
 }

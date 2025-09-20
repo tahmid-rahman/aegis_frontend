@@ -1,4 +1,3 @@
-// app/user/learn/[id].tsx
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Linking, ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
@@ -177,19 +176,22 @@ export default function LearningResource() {
     Linking.openURL(url).catch(err => console.error('Failed to open URL:', err));
   };
 
+  // Determine which theme class suffix to use
+  const themeSuffix = effectiveTheme === "dark" ? "-dark" : "";
+
   if (!resource) {
     return (
-      <View className="flex-1 bg-background items-center justify-center">
-        <Text className="text-on-surface">Loading resource...</Text>
+      <View className={`flex-1 bg-background${themeSuffix} items-center justify-center`}>
+        <Text className={`text-on-surface${themeSuffix}`}>Loading resource...</Text>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-background">
+    <View className={`flex-1 bg-background${themeSuffix}`}>
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Header */}
-        <View className="px-6 pt-6 pb-4">
+        <View className={`px-6 pt-6 pb-4`}>
           <TouchableOpacity 
             onPress={() => router.back()}
             className="mb-4"
@@ -200,8 +202,12 @@ export default function LearningResource() {
 
           <View className="flex-row justify-between items-start mb-2">
             <View className="flex-1">
-              <Text className="text-2xl font-bold text-on-surface">{resource.title}</Text>
-              <Text className="text-on-surface-variant mt-1">{resource.description}</Text>
+              <Text className={`text-2xl font-bold text-on-surface${themeSuffix}`}>
+                {resource.title}
+              </Text>
+              <Text className={`text-on-surface-variant${themeSuffix} mt-1`}>
+                {resource.description}
+              </Text>
             </View>
             <TouchableOpacity 
               onPress={() => setIsBookmarked(!isBookmarked)}
@@ -216,53 +222,63 @@ export default function LearningResource() {
             <View className="bg-primary/10 px-3 py-1 rounded-full mr-3">
               <Text className="text-primary text-sm">{resource.type}</Text>
             </View>
-            <Text className="text-on-surface-variant text-sm">{resource.duration}</Text>
-            <Text className="text-on-surface-variant text-sm mx-3">•</Text>
-            <Text className="text-on-surface-variant text-sm">{resource.category}</Text>
+            <Text className={`text-on-surface-variant${themeSuffix} text-sm`}>
+              {resource.duration}
+            </Text>
+            <Text className={`text-on-surface-variant${themeSuffix} text-sm mx-3`}>•</Text>
+            <Text className={`text-on-surface-variant${themeSuffix} text-sm`}>
+              {resource.category}
+            </Text>
           </View>
         </View>
 
         {/* Content */}
         <View className="px-6 pb-6">
-          <View className="bg-surface-variant rounded-xl p-5">
+          <View className={`bg-surface-variant${themeSuffix} rounded-xl p-5`}>
             {resource.content.split('\n').map((paragraph, index) => {
               if (paragraph.startsWith('# ')) {
                 return (
-                  <Text key={index} className="text-2xl font-bold text-on-surface mb-4">
+                  <Text key={index} className={`text-2xl font-bold text-on-surface${themeSuffix} mb-4`}>
                     {paragraph.replace('# ', '')}
                   </Text>
                 );
               } else if (paragraph.startsWith('## ')) {
                 return (
-                  <Text key={index} className="text-xl font-semibold text-on-surface mt-6 mb-3">
+                  <Text key={index} className={`text-xl font-semibold text-on-surface${themeSuffix} mt-6 mb-3`}>
                     {paragraph.replace('## ', '')}
                   </Text>
                 );
               } else if (paragraph.startsWith('### ')) {
                 return (
-                  <Text key={index} className="text-lg font-medium text-on-surface mt-4 mb-2">
+                  <Text key={index} className={`text-lg font-medium text-on-surface${themeSuffix} mt-4 mb-2`}>
                     {paragraph.replace('### ', '')}
                   </Text>
                 );
               } else if (paragraph.startsWith('- ')) {
                 return (
                   <View key={index} className="flex-row items-start mb-2">
-                    <Text className="text-on-surface mr-2">•</Text>
-                    <Text className="text-on-surface flex-1">{paragraph.replace('- ', '')}</Text>
+                    <Text className={`text-on-surface${themeSuffix} mr-2`}>•</Text>
+                    <Text className={`text-on-surface${themeSuffix} flex-1`}>
+                      {paragraph.replace('- ', '')}
+                    </Text>
                   </View>
                 );
               } else if (paragraph.startsWith('1. ')) {
                 return (
                   <View key={index} className="flex-row items-start mb-2">
-                    <Text className="text-on-surface mr-2">{paragraph.split('.')[0]}.</Text>
-                    <Text className="text-on-surface flex-1">{paragraph.replace(/^\d+\.\s/, '')}</Text>
+                    <Text className={`text-on-surface${themeSuffix} mr-2`}>
+                      {paragraph.split('.')[0]}.
+                    </Text>
+                    <Text className={`text-on-surface${themeSuffix} flex-1`}>
+                      {paragraph.replace(/^\d+\.\s/, '')}
+                    </Text>
                   </View>
                 );
               } else if (paragraph.trim() === '') {
                 return <View key={index} className="h-4" />;
               } else {
                 return (
-                  <Text key={index} className="text-on-surface mb-3 leading-6">
+                  <Text key={index} className={`text-on-surface${themeSuffix} mb-3 leading-6`}>
                     {paragraph}
                   </Text>
                 );
@@ -273,16 +289,20 @@ export default function LearningResource() {
           {/* External Links */}
           {resource.externalLinks && resource.externalLinks.length > 0 && (
             <View className="mt-6">
-              <Text className="text-lg font-semibold text-on-surface mb-3">Additional Resources</Text>
+              <Text className={`text-lg font-semibold text-on-surface${themeSuffix} mb-3`}>
+                Additional Resources
+              </Text>
               {resource.externalLinks.map((link, index) => (
                 <TouchableOpacity
                   key={index}
-                  className="bg-surface-variant p-3 rounded-lg mb-2"
+                  className={`bg-surface-variant${themeSuffix} p-3 rounded-lg mb-2`}
                   onPress={() => handleExternalLink(link.url)}
                   activeOpacity={0.7}
                 >
                   <Text className="text-primary">{link.title}</Text>
-                  <Text className="text-on-surface-variant text-xs mt-1">{link.url}</Text>
+                  <Text className={`text-on-surface-variant${themeSuffix} text-xs mt-1`}>
+                    {link.url}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -291,7 +311,9 @@ export default function LearningResource() {
           {/* Related Resources */}
           {resource.related && resource.related.length > 0 && (
             <View className="mt-8">
-              <Text className="text-lg font-semibold text-on-surface mb-3">Related Resources</Text>
+              <Text className={`text-lg font-semibold text-on-surface${themeSuffix} mb-3`}>
+                Related Resources
+              </Text>
               {resource.related.map((relatedId) => {
                 const relatedResource = learningResources[relatedId];
                 if (!relatedResource) return null;
@@ -299,16 +321,22 @@ export default function LearningResource() {
                 return (
                   <TouchableOpacity
                     key={relatedId}
-                    className="bg-surface-variant p-4 rounded-xl mb-3"
+                    className={`bg-surface-variant${themeSuffix} p-4 rounded-xl mb-3`}
                     onPress={() => router.push(`/learn/${relatedId}`)}
                     activeOpacity={0.7}
                   >
                     <View className="flex-row items-start">
                       <Text className="text-2xl mr-3">{relatedResource.icon}</Text>
                       <View className="flex-1">
-                        <Text className="text-on-surface font-semibold mb-1">{relatedResource.title}</Text>
-                        <Text className="text-on-surface-variant text-sm mb-2">{relatedResource.description}</Text>
-                        <Text className="text-primary text-xs">{relatedResource.type.toUpperCase()}</Text>
+                        <Text className={`text-on-surface${themeSuffix} font-semibold mb-1`}>
+                          {relatedResource.title}
+                        </Text>
+                        <Text className={`text-on-surface-variant${themeSuffix} text-sm mb-2`}>
+                          {relatedResource.description}
+                        </Text>
+                        <Text className="text-primary text-xs">
+                          {relatedResource.type.toUpperCase()}
+                        </Text>
                       </View>
                     </View>
                   </TouchableOpacity>
@@ -320,14 +348,14 @@ export default function LearningResource() {
       </ScrollView>
 
       {/* Action Buttons */}
-      <View className="px-6 py-4 bg-surface border-t border-outline">
+      <View className={`px-6 py-4 bg-surface${themeSuffix} border-t border-outline${themeSuffix}`}>
         <View className="flex-row justify-between">
           <TouchableOpacity 
-            className="bg-surface-variant px-4 py-3 rounded-lg flex-1 mr-3"
+            className={`bg-surface-variant${themeSuffix} px-4 py-3 rounded-lg flex-1 mr-3`}
             onPress={handleShare}
             activeOpacity={0.7}
           >
-            <Text className="text-on-surface text-center">Share</Text>
+            <Text className={`text-on-surface${themeSuffix} text-center`}>Share</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             className="bg-primary px-4 py-3 rounded-lg flex-1"

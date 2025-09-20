@@ -55,7 +55,7 @@ export default function Welcome() {
         <TouchableOpacity
           className="bg-primary py-5 rounded-xl mb-4 shadow-md active:bg-primary-container"
           activeOpacity={0.9}
-          onPress={() => router.push("/home")}
+          onPress={() => router.push("/signup")}
         >
           <Text className="text-on-primary text-center font-bold text-lg">
             Get Started

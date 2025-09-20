@@ -36,17 +36,17 @@ export default function UserLayout() {
             title: "Emergency",
             presentation: "modal",
             gestureEnabled: false,
-            contentStyle: { paddingBottom: 0 } // No padding for modals
+            contentStyle: { paddingBottom: 0 } 
           }} 
         />
         <Stack.Screen 
           name="panic-active" 
           options={{ 
             title: "Emergency Active",
-            headerShown: true,
+            headerShown: false,
             headerLeft: () => null,
             gestureEnabled: false,
-            contentStyle: { paddingBottom: 0 } // No padding for emergency screens
+            contentStyle: { paddingBottom: 0 } 
           }} 
         />
       </Stack>

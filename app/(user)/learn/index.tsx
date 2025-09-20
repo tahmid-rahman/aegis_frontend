@@ -1,8 +1,8 @@
-// (user)/learn/index.tsx
 import ResourceCard from "@/components/ui/ResourceCard";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { SectionList, Text, TouchableOpacity, View } from "react-native";
+import { useTheme } from '../../../providers/ThemeProvider';
 
 // 🔹 Resource type
 type Resource = {
@@ -58,6 +58,7 @@ const resources: Resource[] = [
 export default function LearnScreen() {
   const router = useRouter();
   const [activeCategory, setActiveCategory] = useState("all");
+  const { effectiveTheme } = useTheme(); // Get the effective theme
 
   // Filter resources by category
   const filteredResources = activeCategory === "all"
@@ -75,10 +76,13 @@ export default function LearnScreen() {
     },
   ];
 
+  // Determine which theme class suffix to use
+  const themeSuffix = effectiveTheme === "dark" ? "-dark" : "";
+
   return (
-    <View className="flex-1 bg-background pt-14">
+    <View className={`flex-1 pt-14 bg-background${themeSuffix}`}>
       {/* 🔹 Header */}
-      <Text className="text-2xl font-bold px-6 mb-4 text-text">
+      <Text className={`text-2xl font-bold px-6 mb-4 text-on-surface${themeSuffix}`}>
         Learn Safety Skills
       </Text>
 
@@ -88,7 +92,9 @@ export default function LearnScreen() {
         renderSectionHeader={({ section: { title } }) => (
           <>
             <View className="px-6 mb-4">
-              <Text className="text-lg font-semibold text-text">{title}</Text>
+              <Text className={`text-lg font-semibold text-on-surface${themeSuffix}`}>
+                {title}
+              </Text>
             </View>
             <View className="flex-row px-6 mb-4">
               {categories.map((category) => (
@@ -98,14 +104,14 @@ export default function LearnScreen() {
                   className={`mr-3 px-4 py-2 rounded-full ${
                     activeCategory === category.id
                       ? "bg-primary"
-                      : "bg-surface border border-outline"
+                      : `bg-surface-variant${themeSuffix} border border-outline${themeSuffix}`
                   }`}
                 >
                   <Text
                     className={`font-medium ${
                       activeCategory === category.id
-                        ? "text-white"
-                        : "text-text"
+                        ? "text-on-primary"
+                        : `text-on-surface-variant${themeSuffix}`
                     }`}
                   >
                     {category.label}
@@ -128,4 +134,3 @@ export default function LearnScreen() {
     </View>
   );
 }
-

@@ -1,59 +1,63 @@
 // app/user/contacts/index.tsx
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { useTheme } from '../../../providers/ThemeProvider';
+import { api } from '../../../services/api';
 
-// Mock data for emergency contacts
-const mockContacts = [
-  {
-    id: '1',
-    name: 'Mom',
-    phone: '+1 (555) 123-4567',
-    relationship: 'Family',
-    photo: '👩',
-    isEmergency: true
-  },
-  {
-    id: '2',
-    name: 'Dad',
-    phone: '+1 (555) 987-6543',
-    relationship: 'Family',
-    photo: '👨',
-    isEmergency: true
-  },
-  {
-    id: '3',
-    name: 'Sarah (Sister)',
-    phone: '+1 (555) 456-7890',
-    relationship: 'Family',
-    photo: '👧',
-    isEmergency: true
-  },
-  {
-    id: '4',
-    name: 'Alex (Friend)',
-    phone: '+1 (555) 234-5678',
-    relationship: 'Friend',
-    photo: '👦',
-    isEmergency: false
-  },
-  {
-    id: '5',
-    name: 'Local Police',
-    phone: '+1 (555) 911',
-    relationship: 'Emergency Service',
-    photo: '👮',
-    isEmergency: true
-  },
-];
+interface EmergencyContact {
+  id: number;
+  name: string;
+  phone: string;
+  relationship: string;
+  is_emergency_contact: boolean;
+  is_primary: boolean;
+  photo: string;
+  created_at: string;
+  updated_at: string;
+}
 
 export default function ContactsScreen() {
   const router = useRouter();
-  const [contacts, setContacts] = useState(mockContacts);
+  const { effectiveTheme } = useTheme();
+  
+  const [contacts, setContacts] = useState<EmergencyContact[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'all' | 'emergency'>('emergency');
 
+  const fetchContacts = async () => {
+    try {
+      setLoading(true);
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      
+      api.defaults.headers.Authorization = `Token ${token}`;
+      const response = await api.get('/aegis/contacts/');
+      setContacts(response.data);
+    } catch (error: any) {
+      console.error('Error fetching contacts:', error);
+      Alert.alert('Error', 'Failed to load contacts. Please try again.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchContacts();
+  }, []);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchContacts();
+  };
+
   const filteredContacts = selectedTab === 'emergency' 
-    ? contacts.filter(contact => contact.isEmergency)
+    ? contacts.filter(contact => contact.is_emergency_contact)
     : contacts;
 
   const handleAddContact = () => {
@@ -64,15 +68,25 @@ export default function ContactsScreen() {
     ]);
   };
 
-  const handleToggleEmergency = (id: string) => {
-    setContacts(contacts.map(contact => 
-      contact.id === id 
-        ? { ...contact, isEmergency: !contact.isEmergency } 
-        : contact
-    ));
+  const handleToggleEmergency = async (id: number) => {
+    try {
+      const contact = contacts.find(c => c.id === id);
+      if (!contact) return;
+
+      const response = await api.patch(`/aegis/contacts/${id}/`, {
+        is_emergency_contact: !contact.is_emergency_contact
+      });
+
+      setContacts(contacts.map(c => 
+        c.id === id ? response.data : c
+      ));
+    } catch (error: any) {
+      console.error('Error updating contact:', error);
+      Alert.alert('Error', 'Failed to update contact. Please try again.');
+    }
   };
 
-  const handleTestAlert = (contact: any) => {
+  const handleTestAlert = async (contact: EmergencyContact) => {
     Alert.alert(
       'Test Alert',
       `Send a test alert to ${contact.name}?`,
@@ -80,13 +94,61 @@ export default function ContactsScreen() {
         { text: 'Cancel', style: 'cancel' },
         { 
           text: 'Send Test', 
-          onPress: () => {
-            Alert.alert('Success', `Test alert sent to ${contact.name}`);
+          onPress: async () => {
+            try {
+              const response = await api.post(`/aegis/contacts/${contact.id}/test-alert/`);
+              Alert.alert('Success', response.data.message);
+            } catch (error: any) {
+              console.error('Error sending test alert:', error);
+              Alert.alert('Error', 'Failed to send test alert. Please try again.');
+            }
           } 
         }
       ]
     );
   };
+
+  const handleDeleteContact = async (id: number) => {
+    Alert.alert(
+      'Delete Contact',
+      'Are you sure you want to delete this contact?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Using the new POST delete endpoint
+              const response = await api.post(`/aegis/contacts/${id}/delete/`);
+              setContacts(contacts.filter(c => c.id !== id));
+              Alert.alert('Success', response.data.message);
+            } catch (error: any) {
+              console.error('Error deleting contact:', error);
+              
+              // Fallback to DELETE method if POST fails
+              try {
+                await api.delete(`/aegis/contacts/${id}/`);
+                setContacts(contacts.filter(c => c.id !== id));
+                Alert.alert('Success', 'Contact deleted successfully');
+              } catch (deleteError: any) {
+                Alert.alert('Error', 'Failed to delete contact. Please try again.');
+              }
+            }
+          } 
+        }
+      ]
+    );
+  };
+
+  if (loading) {
+    return (
+      <View className="flex-1 bg-background items-center justify-center">
+        <ActivityIndicator size="large" color={effectiveTheme === 'dark' ? '#fff' : '#000'} />
+        <Text className="text-on-surface mt-4">Loading contacts...</Text>
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-background">
@@ -105,7 +167,7 @@ export default function ContactsScreen() {
           onPress={() => setSelectedTab('emergency')}
         >
           <Text className={`text-center font-medium ${selectedTab === 'emergency' ? 'text-on-primary' : 'text-on-surface'}`}>
-            Emergency ({contacts.filter(c => c.isEmergency).length})
+            Emergency ({contacts.filter(c => c.is_emergency_contact).length})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -113,14 +175,14 @@ export default function ContactsScreen() {
           onPress={() => setSelectedTab('all')}
         >
           <Text className={`text-center font-medium ${selectedTab === 'all' ? 'text-on-primary' : 'text-on-surface'}`}>
-            All Contacts
+            All Contacts ({contacts.length})
           </Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView className="flex-1 px-6" showsVerticalScrollIndicator={false}>
         {/* Emergency Contact Requirements */}
-        {selectedTab === 'emergency' && contacts.filter(c => c.isEmergency).length < 2 && (
+        {selectedTab === 'emergency' && contacts.filter(c => c.is_emergency_contact).length < 2 && (
           <View className="bg-error/10 p-4 rounded-xl mb-4">
             <Text className="text-error font-semibold">⚠️ Minimum 2 Emergency Contacts Required</Text>
             <Text className="text-on-surface-variant text-sm mt-1">
@@ -144,9 +206,13 @@ export default function ContactsScreen() {
 
                 {/* Contact Info */}
                 <View className="flex-1">
-                  <Text className="text-on-surface font-medium">{contact.name}</Text>
+                  <Text className="text-on-surface font-medium">
+                    {contact.name} {contact.is_primary && '⭐'}
+                  </Text>
                   <Text className="text-on-surface-variant text-sm">{contact.phone}</Text>
-                  <Text className="text-on-surface-variant text-xs">{contact.relationship}</Text>
+                  <Text className="text-on-surface-variant text-xs capitalize">
+                    {contact.relationship.replace('_', ' ')}
+                  </Text>
                 </View>
 
                 {/* Actions */}
@@ -158,12 +224,18 @@ export default function ContactsScreen() {
                     <Text className="text-primary">📋</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
-                    className={`p-2 rounded-full ${contact.isEmergency ? 'bg-accent/20' : 'bg-surface'}`}
+                    className={`p-2 rounded-full ${contact.is_emergency_contact ? 'bg-accent/20' : 'bg-surface'}`}
                     onPress={() => handleToggleEmergency(contact.id)}
                   >
-                    <Text className={contact.isEmergency ? 'text-accent' : 'text-on-surface-variant'}>
-                      {contact.isEmergency ? '🚨' : '➕'}
+                    <Text className={contact.is_emergency_contact ? 'text-accent' : 'text-on-surface-variant'}>
+                      {contact.is_emergency_contact ? '🚨' : '➕'}
                     </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    className="p-2"
+                    onPress={() => handleDeleteContact(contact.id)}
+                  >
+                    <Text className="text-error">🗑️</Text>
                   </TouchableOpacity>
                 </View>
               </View>

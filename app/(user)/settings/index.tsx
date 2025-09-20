@@ -1,12 +1,14 @@
 // app/user/settings.tsx
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { useAuth } from '../../../providers/AuthProvider'; // Import your AuthProvider
 import { useTheme } from '../../../providers/ThemeProvider';
 
 export default function Settings() {
   const router = useRouter();
   const { theme, effectiveTheme, setTheme } = useTheme();
+  const { logout } = useAuth(); // Get the logout function from AuthProvider
   
   const [settings, setSettings] = useState({
     locationSharing: true,
@@ -25,6 +27,27 @@ export default function Settings() {
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
     setTheme(newTheme);
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        { 
+          text: "Logout", 
+          onPress: () => {
+            // Call the logout function from AuthProvider
+            logout();
+          },
+          style: "destructive"
+        }
+      ]
+    );
   };
 
   const settingsSections = [
@@ -178,6 +201,16 @@ export default function Settings() {
             </View>
           </View>
         ))}
+        
+        {/* Logout Button */}
+        <View className="mx-6 mt-4 mb-8">
+          <TouchableOpacity 
+            className="bg-error rounded-xl p-4 items-center"
+            onPress={handleLogout}
+          >
+            <Text className="text-on-error font-semibold">Logout</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </View>
   );
