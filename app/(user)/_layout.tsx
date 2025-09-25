@@ -11,7 +11,7 @@ export default function UserLayout() {
   // Check if we should hide the nav on certain screens
   const shouldHideNav = () => {
     const currentRoute = segments[segments.length - 1] || "";
-    return ['panic-confirm', 'panic-active'].includes(currentRoute);
+    return ['panic-confirm', 'panic-active', 'silent-capture'].includes(currentRoute);
   };
 
   return (
@@ -43,6 +43,16 @@ export default function UserLayout() {
           name="panic-active" 
           options={{ 
             title: "Emergency Active",
+            headerShown: false,
+            headerLeft: () => null,
+            gestureEnabled: false,
+            contentStyle: { paddingBottom: 0 } 
+          }} 
+        />
+        <Stack.Screen 
+          name="silent-capture" 
+          options={{ 
+            title: "Silent Capture",
             headerShown: false,
             headerLeft: () => null,
             gestureEnabled: false,
