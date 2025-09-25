@@ -1,170 +1,222 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ResizeMode, Video } from 'expo-av';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Linking, ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  ScrollView,
+  Share,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../../../providers/ThemeProvider';
+import { api } from '../../../services/api';
 
-// Mock data - in real app, this would come from API or database
-const learningResources = {
-  1: {
-    title: "How to Activate Emergency Mode",
-    description: "Step-by-step guide to using the panic button effectively in different scenarios",
-    content: `
-# Emergency Activation Guide
+// Define types matching backend API
+interface ExternalLink {
+  id: number;
+  title: string;
+  url: string;
+  description: string;
+  order: number;
+}
 
-## When to Use the Panic Button
+interface QuizOption {
+  id: number;
+  text: string;
+  order: number;
+  is_correct: boolean;
+}
 
-Use the emergency mode when you feel:
-- Physically threatened or in immediate danger
-- Unsafe in your current location
-- Being followed or harassed
-- Need immediate assistance
+interface QuizQuestion {
+  id: number;
+  question: string;
+  explanation: string;
+  options: QuizOption[];
+  order: number;
+}
 
-## Activation Steps
+interface UserProgress {
+  completed: boolean;
+  progress_percentage: number;
+  bookmarked: boolean;
+  time_spent: number;
+}
 
-1. **Press and Hold**: Press the red panic button for 3 seconds
-2. **Confirm Alert**: If possible, confirm the emergency alert on screen
-3. **Location Sharing**: Your GPS location is automatically shared with emergency contacts
-4. **Discreet Recording**: The app silently starts recording audio (optional)
+interface LearningResource {
+  id: number;
+  title: string;
+  description: string;
+  content: string;
+  resource_type: string;
+  difficulty: string;
+  duration: string;
+  icon: string;
+  category: number;
+  category_name: string;
+  video_url?: string;
+  thumbnail?: string;
+  external_links: ExternalLink[];
+  quiz_questions: QuizQuestion[];
+  user_progress?: UserProgress;
+  is_bookmarked?: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
-## What Happens Next
+interface QuizAnswer {
+  question_id: number;
+  option_id: number;
+}
 
-- Emergency contacts receive your location and alert message
-- Local authorities are notified if you've enabled this feature
-- The app continues sharing your location until deactivated
-- You receive confirmation when help is on the way
+interface QuizSubmission {
+  answers: QuizAnswer[];
+  time_spent: number;
+}
 
-## Safety Tips
-
-- Keep your phone accessible in unfamiliar areas
-- Ensure location services are enabled
-- Regularly update your emergency contacts
-- Practice using the panic button in safe environments
-`,
-    type: "guide",
-    duration: "5 min read",
-    icon: "🆘",
-    category: "Emergency Procedures",
-    related: [2, 3],
-    externalLinks: [
-      { title: "Emergency Preparedness Guide", url: "https://example.com/emergency-prep" },
-      { title: "Local Police Department", url: "https://example.com/police" }
-    ]
-  },
-  2: {
-    title: "What Happens When You Trigger Alert",
-    description: "Understand the alert process and response timeline",
-    content: `
-# Alert Process Explained
-
-## Immediate Actions
-
-When you trigger an emergency alert:
-
-1. **Instant Notification**: Your emergency contacts receive an SMS with your location
-2. **App Notification**: Contacts with the app get detailed alert with live location
-3. **Email Alert**: Backup email sent with incident details and map link
-
-## Response Timeline
-
-- **0-30 seconds**: Alert dispatched to all channels
-- **1-2 minutes**: First emergency contact typically acknowledges
-- **3-5 minutes**: Local authorities notified if enabled
-- **5+ minutes**: Continuous location updates every 30 seconds
-
-## Location Tracking
-
-Your location is shared via:
-- GPS coordinates with accuracy rating
-- Google Maps link for easy navigation
-- Address approximation based on your position
-- Live updates until alert is resolved
-
-## Privacy Considerations
-
-- Location sharing stops when alert is cancelled
-- No data is stored after incident resolution
-- You control who receives alerts
-- You can disable authority notification
-`,
-    type: "article",
-    duration: "3 min read",
-    icon: "📋",
-    category: "Emergency Procedures",
-    related: [1, 4]
-  },
-  3: {
-    title: "Basic Self-Defense Moves",
-    description: "Simple techniques anyone can use in dangerous situations",
-    content: `
-# Basic Self-Defense Techniques
-
-## Fundamental Principles
-
-1. **Awareness**: Always be aware of your surroundings
-2. **Avoidance**: The best defense is avoiding dangerous situations
-3. **Assertiveness**: Confident body language can deter attackers
-4. **Action**: Simple, effective moves to create escape opportunities
-
-## Essential Techniques
-
-### Palm Heel Strike
-- Target: Nose or chin
-- Method: Heel of palm upward strike
-- Effect: Stuns attacker, creates escape time
-
-### Groin Kick
-- Target: Groin area
-- Method: Quick, upward kick
-- Effect: Incapacitates momentarily
-
-### Elbow Strike
-- Target: Ribs, face, or solar plexus
-- Method: Sharp backward elbow thrust
-- Effect: Creates distance from behind
-
-### Escape from Wrist Grab
-- Method: Twist toward thumb, leverage weakness
-- Effect: Breaks grip, allows escape
-
-## Practice Tips
-
-- Practice regularly with a partner
-- Focus on technique over strength
-- Learn 2-3 moves thoroughly rather than many poorly
-- Consider professional self-defense classes
-
-## Legal Considerations
-
-- Use only proportional force
-- Self-defense must be immediate response to threat
-- Escape is always priority over confrontation
-`,
-    type: "tutorial",
-    duration: "8 min read",
-    icon: "👊",
-    category: "Self-Defense Techniques",
-    related: [4, 5]
-  }
-};
+interface QuizResult {
+  score: number;
+  correct_answers: number;
+  total_questions: number;
+  attempt_id: number;
+  message: string;
+}
 
 export default function LearningResource() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { effectiveTheme } = useTheme();
-  const [resource, setResource] = useState(null);
-  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [resource, setResource] = useState<LearningResource | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [quizResults, setQuizResults] = useState<QuizResult | null>(null);
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
+  const videoRef = useRef<Video>(null);
 
-  useEffect(() => {
-    if (params.id) {
-      const resourceId = parseInt(params.id as string);
-      setResource(learningResources[resourceId]);
+  const fetchResource = async () => {
+    try {
+      setLoading(true);
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      api.defaults.headers.Authorization = `Token ${token}`;
+      const response = await api.get(`/aegis/learn/resources/${params.id}/`);
+      setResource(response.data);
+      
+    } catch (error: any) {
+      console.error('Error fetching resource:', error);
+      Alert.alert('Error', 'Failed to load resource. Please try again.');
+    } finally {
+      setLoading(false);
     }
-  }, [params.id]);
+  };
+
+  const toggleBookmark = async () => {
+    if (!resource) return;
+
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) return;
+
+      api.defaults.headers.Authorization = `Token ${token}`;
+      const response = await api.post(`/aegis/learn/resources/${resource.id}/bookmark/`);
+      
+      setResource(prev => prev ? {
+        ...prev,
+        is_bookmarked: response.data.bookmarked,
+        user_progress: {
+          ...(prev.user_progress ?? { 
+            completed: false, 
+            progress_percentage: 0, 
+            bookmarked: false, 
+            time_spent: 0 
+          }),
+          bookmarked: response.data.bookmarked
+        }
+      } : null);
+
+    } catch (error: any) {
+      console.error('Error toggling bookmark:', error);
+      Alert.alert('Error', 'Failed to update bookmark. Please try again.');
+    }
+  };
+
+  const submitQuiz = async () => {
+    if (!resource?.quiz_questions) return;
+    
+    const allAnswered = resource.quiz_questions.every((question, index) => 
+      selectedAnswers[index] !== undefined
+    );
+    
+    if (!allAnswered) {
+      Alert.alert("Incomplete Quiz", "Please answer all questions before submitting.");
+      return;
+    }
+
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) return;
+
+      // Prepare answers in the required format
+      const answers: QuizAnswer[] = [];
+      Object.entries(selectedAnswers).forEach(([questionIndex, optionId]) => {
+        const question = resource.quiz_questions[parseInt(questionIndex)];
+        if (question) {
+          answers.push({
+            question_id: question.id,
+            option_id: optionId
+          });
+        }
+      });
+
+      const submissionData: QuizSubmission = {
+        answers: answers,
+        time_spent: Math.floor(resource.quiz_questions.length * 30) // 30 seconds per question
+      };
+
+      api.defaults.headers.Authorization = `Token ${token}`;
+      const response = await api.post<QuizResult>(
+        `/aegis/learn/resources/${resource.id}/quiz/submit/`,
+        submissionData
+      );
+
+      setQuizSubmitted(true);
+      setQuizResults(response.data);
+      
+      // Update local resource progress
+      setResource(prev => prev ? {
+        ...prev,
+        user_progress: {
+          completed: true,
+          progress_percentage: 100,
+          bookmarked: prev.user_progress?.bookmarked || false,
+          time_spent: (prev.user_progress?.time_spent || 0) + submissionData.time_spent
+        }
+      } : null);
+
+      Alert.alert(
+        "Quiz Results", 
+        `You scored ${response.data.correct_answers}/${response.data.total_questions} (${Math.round(response.data.score)}%)!`,
+        [{ text: "OK" }]
+      );
+
+    } catch (error: any) {
+      console.error('Error submitting quiz:', error);
+      Alert.alert('Error', 'Failed to submit quiz. Please try again.');
+    }
+  };
 
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `Check out this safety resource: ${resource.title} - ${resource.description}`,
+        message: `Check out this safety resource: ${resource?.title} - ${resource?.description}`,
         url: `https://yourapp.com/learn/${params.id}`
       });
     } catch (error) {
@@ -176,13 +228,64 @@ export default function LearningResource() {
     Linking.openURL(url).catch(err => console.error('Failed to open URL:', err));
   };
 
-  // Determine which theme class suffix to use
+  const handleAnswerSelect = (questionIndex: number, optionId: number) => {
+    if (quizSubmitted) return;
+    
+    setSelectedAnswers(prev => ({
+      ...prev,
+      [questionIndex]: optionId
+    }));
+  };
+
+  const handleQuizReset = () => {
+    setSelectedAnswers({});
+    setQuizSubmitted(false);
+    setQuizResults(null);
+  };
+
+  const getOptionStatus = (questionIndex: number, option: QuizOption) => {
+    if (!quizSubmitted) {
+      return selectedAnswers[questionIndex] === option.id ? 'selected' : 'default';
+    }
+    
+    if (option.is_correct) {
+      return 'correct';
+    }
+    
+    if (selectedAnswers[questionIndex] === option.id && !option.is_correct) {
+      return 'incorrect';
+    }
+    
+    return 'default';
+  };
+
+  useEffect(() => {
+    if (params.id) {
+      fetchResource();
+      setSelectedAnswers({});
+      setQuizSubmitted(false);
+      setQuizResults(null);
+    }
+  }, [params.id]);
+
   const themeSuffix = effectiveTheme === "dark" ? "-dark" : "";
+
+  if (loading) {
+    return (
+      <View className={`flex-1 bg-background${themeSuffix} items-center justify-center`}>
+        <ActivityIndicator size="large" color={effectiveTheme === 'dark' ? '#fff' : '#000'} />
+        <Text className={`text-on-surface${themeSuffix} mt-4`}>Loading resource...</Text>
+      </View>
+    );
+  }
 
   if (!resource) {
     return (
       <View className={`flex-1 bg-background${themeSuffix} items-center justify-center`}>
-        <Text className={`text-on-surface${themeSuffix}`}>Loading resource...</Text>
+        <Text className={`text-on-surface${themeSuffix}`}>Resource not found</Text>
+        <TouchableOpacity onPress={() => router.back()} className="mt-4 bg-primary px-6 py-3 rounded-lg">
+          <Text className="text-on-primary">Go Back</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -210,141 +313,190 @@ export default function LearningResource() {
               </Text>
             </View>
             <TouchableOpacity 
-              onPress={() => setIsBookmarked(!isBookmarked)}
+              onPress={toggleBookmark}
               className="p-2"
               activeOpacity={0.7}
             >
-              <Text className="text-2xl">{isBookmarked ? '📑' : '📄'}</Text>
+              <Text className="text-2xl">{resource.is_bookmarked ? '📑' : '📄'}</Text>
             </TouchableOpacity>
           </View>
 
-          <View className="flex-row items-center mt-4">
-            <View className="bg-primary/10 px-3 py-1 rounded-full mr-3">
-              <Text className="text-primary text-sm">{resource.type}</Text>
+          <View className="flex-row flex-wrap items-center mt-4">
+            <View className="bg-primary/10 px-3 py-1 rounded-full mr-3 mb-2">
+              <Text className="text-primary text-sm capitalize">{resource.resource_type}</Text>
             </View>
-            <Text className={`text-on-surface-variant${themeSuffix} text-sm`}>
+            <View className="bg-secondary/10 px-3 py-1 rounded-full mr-3 mb-2">
+              <Text className="text-secondary text-sm capitalize">{resource.difficulty}</Text>
+            </View>
+            <Text className={`text-on-surface-variant${themeSuffix} text-sm mr-3 mb-2`}>
               {resource.duration}
             </Text>
-            <Text className={`text-on-surface-variant${themeSuffix} text-sm mx-3`}>•</Text>
-            <Text className={`text-on-surface-variant${themeSuffix} text-sm`}>
-              {resource.category}
+            <Text className={`text-on-surface-variant${themeSuffix} text-sm mb-2`}>
+              {resource.category_name}
             </Text>
           </View>
+
+          {/* Progress Display */}
+          {resource.user_progress && (
+            <View className="mt-4">
+              <View className="flex-row justify-between items-center mb-1">
+                <Text className={`text-on-surface${themeSuffix} text-sm`}>Progress</Text>
+                <Text className={`text-on-surface${themeSuffix} text-sm`}>
+                  {resource.user_progress.progress_percentage}%
+                </Text>
+              </View>
+              <View className="w-full bg-gray-200 rounded-full h-2">
+                <View 
+                  className="bg-primary rounded-full h-2" 
+                  style={{ width: `${resource.user_progress.progress_percentage}%` }}
+                />
+              </View>
+            </View>
+          )}
         </View>
 
-        {/* Content */}
-        <View className="px-6 pb-6">
-          <View className={`bg-surface-variant${themeSuffix} rounded-xl p-5`}>
-            {resource.content.split('\n').map((paragraph, index) => {
-              if (paragraph.startsWith('# ')) {
-                return (
-                  <Text key={index} className={`text-2xl font-bold text-on-surface${themeSuffix} mb-4`}>
-                    {paragraph.replace('# ', '')}
-                  </Text>
-                );
-              } else if (paragraph.startsWith('## ')) {
-                return (
-                  <Text key={index} className={`text-xl font-semibold text-on-surface${themeSuffix} mt-6 mb-3`}>
-                    {paragraph.replace('## ', '')}
-                  </Text>
-                );
-              } else if (paragraph.startsWith('### ')) {
-                return (
-                  <Text key={index} className={`text-lg font-medium text-on-surface${themeSuffix} mt-4 mb-2`}>
-                    {paragraph.replace('### ', '')}
-                  </Text>
-                );
-              } else if (paragraph.startsWith('- ')) {
-                return (
-                  <View key={index} className="flex-row items-start mb-2">
-                    <Text className={`text-on-surface${themeSuffix} mr-2`}>•</Text>
-                    <Text className={`text-on-surface${themeSuffix} flex-1`}>
-                      {paragraph.replace('- ', '')}
-                    </Text>
-                  </View>
-                );
-              } else if (paragraph.startsWith('1. ')) {
-                return (
-                  <View key={index} className="flex-row items-start mb-2">
-                    <Text className={`text-on-surface${themeSuffix} mr-2`}>
-                      {paragraph.split('.')[0]}.
-                    </Text>
-                    <Text className={`text-on-surface${themeSuffix} flex-1`}>
-                      {paragraph.replace(/^\d+\.\s/, '')}
-                    </Text>
-                  </View>
-                );
-              } else if (paragraph.trim() === '') {
-                return <View key={index} className="h-4" />;
-              } else {
-                return (
-                  <Text key={index} className={`text-on-surface${themeSuffix} mb-3 leading-6`}>
-                    {paragraph}
-                  </Text>
-                );
-              }
-            })}
+        {/* Video Player */}
+        {resource.resource_type === "video" && resource.video_url && (
+          <View className="px-6 mb-6">
+            <Video
+              ref={videoRef}
+              source={{ uri: resource.video_url }}
+              rate={1.0}
+              volume={1.0}
+              isMuted={false}
+              resizeMode={ResizeMode.CONTAIN}
+              shouldPlay={isPlaying}
+              isLooping={false}
+              useNativeControls
+              className="w-full h-64 rounded-xl"
+              onError={(error: any) => console.error('Video error:', error)}
+            />
           </View>
+        )}
 
-          {/* External Links */}
-          {resource.externalLinks && resource.externalLinks.length > 0 && (
-            <View className="mt-6">
-              <Text className={`text-lg font-semibold text-on-surface${themeSuffix} mb-3`}>
-                Additional Resources
-              </Text>
-              {resource.externalLinks.map((link, index) => (
-                <TouchableOpacity
-                  key={index}
-                  className={`bg-surface-variant${themeSuffix} p-3 rounded-lg mb-2`}
-                  onPress={() => handleExternalLink(link.url)}
-                  activeOpacity={0.7}
-                >
-                  <Text className="text-primary">{link.title}</Text>
-                  <Text className={`text-on-surface-variant${themeSuffix} text-xs mt-1`}>
-                    {link.url}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-
-          {/* Related Resources */}
-          {resource.related && resource.related.length > 0 && (
-            <View className="mt-8">
-              <Text className={`text-lg font-semibold text-on-surface${themeSuffix} mb-3`}>
-                Related Resources
-              </Text>
-              {resource.related.map((relatedId) => {
-                const relatedResource = learningResources[relatedId];
-                if (!relatedResource) return null;
+        {/* Quiz Component */}
+        {resource.resource_type === "quiz" && resource.quiz_questions && (
+          <View className="px-6 mb-6">
+            <Text className={`text-xl font-bold text-on-surface${themeSuffix} mb-4`}>
+              Test Your Knowledge ({resource.quiz_questions.length} questions)
+            </Text>
+            
+            {resource.quiz_questions.map((question, qIndex) => (
+              <View key={question.id} className={`mb-6 bg-surface-variant${themeSuffix} p-4 rounded-xl`}>
+                <Text className={`text-lg font-semibold text-on-surface${themeSuffix} mb-3`}>
+                  {qIndex + 1}. {question.question}
+                </Text>
                 
-                return (
-                  <TouchableOpacity
-                    key={relatedId}
-                    className={`bg-surface-variant${themeSuffix} p-4 rounded-xl mb-3`}
-                    onPress={() => router.push(`/learn/${relatedId}`)}
-                    activeOpacity={0.7}
-                  >
-                    <View className="flex-row items-start">
-                      <Text className="text-2xl mr-3">{relatedResource.icon}</Text>
-                      <View className="flex-1">
-                        <Text className={`text-on-surface${themeSuffix} font-semibold mb-1`}>
-                          {relatedResource.title}
-                        </Text>
-                        <Text className={`text-on-surface-variant${themeSuffix} text-sm mb-2`}>
-                          {relatedResource.description}
-                        </Text>
-                        <Text className="text-primary text-xs">
-                          {relatedResource.type.toUpperCase()}
-                        </Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
+                {question.options.map((option) => {
+                  const status = getOptionStatus(qIndex, option);
+                  const bgColor = {
+                    default: `bg-surface${themeSuffix}`,
+                    selected: "bg-blue-100 border-blue-500",
+                    correct: "bg-green-100 border-green-500",
+                    incorrect: "bg-red-100 border-red-500"
+                  }[status];
+
+                  const textColor = {
+                    default: `text-on-surface${themeSuffix}`,
+                    selected: "text-blue-800",
+                    correct: "text-green-800",
+                    incorrect: "text-red-800"
+                  }[status];
+
+                  return (
+                    <TouchableOpacity
+                      key={option.id}
+                      onPress={() => handleAnswerSelect(qIndex, option.id)}
+                      disabled={quizSubmitted}
+                      className={`${bgColor} p-3 rounded-lg mb-2 border-2`}
+                      activeOpacity={0.7}
+                    >
+                      <Text className={textColor}>
+                        {String.fromCharCode(65 + question.options.indexOf(option))}. {option.text}
+                        {quizSubmitted && option.is_correct && " ✓"}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                
+                {quizSubmitted && (
+                  <View className="mt-3 p-3 bg-blue-50 rounded-lg">
+                    <Text className="text-blue-800 font-medium">
+                      Explanation: {question.explanation}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            ))}
+            
+            {!quizSubmitted ? (
+              <TouchableOpacity
+                onPress={submitQuiz}
+                className="bg-primary px-4 py-3 rounded-lg"
+                activeOpacity={0.7}
+              >
+                <Text className="text-on-primary text-center font-semibold">
+                  Submit Answers
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={handleQuizReset}
+                className="bg-gray-500 px-4 py-3 rounded-lg"
+                activeOpacity={0.7}
+              >
+                <Text className="text-white text-center font-semibold">
+                  Try Again
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Content for articles, guides, tutorials */}
+        {(resource.resource_type === "article" || resource.resource_type === "guide" || resource.resource_type === "tutorial") && resource.content && (
+          <View className="px-6 pb-6">
+            <View className={`bg-surface-variant${themeSuffix} rounded-xl p-5`}>
+              <Markdown
+                style={{
+                  body: { color: effectiveTheme === 'dark' ? '#ffffff' : '#000000' },
+                  paragraph: { marginBottom: 16 },
+                  heading1: { fontSize: 24, fontWeight: 'bold', marginBottom: 16 },
+                  heading2: { fontSize: 20, fontWeight: 'bold', marginBottom: 12 },
+                  heading3: { fontSize: 18, fontWeight: 'bold', marginBottom: 8 },
+                  list_item: { marginBottom: 8 },
+                  bullet_list: { marginBottom: 16 },
+                }}
+              >
+                {resource.content}
+              </Markdown>
             </View>
-          )}
-        </View>
+          </View>
+        )}
+
+        {/* External Links */}
+        {resource.external_links && resource.external_links.length > 0 && (
+          <View className="px-6 pb-6">
+            <Text className={`text-lg font-semibold text-on-surface${themeSuffix} mb-3`}>
+              Additional Resources
+            </Text>
+            {resource.external_links.map((link) => (
+              <TouchableOpacity
+                key={link.id}
+                className={`bg-surface-variant${themeSuffix} p-3 rounded-lg mb-2`}
+                onPress={() => handleExternalLink(link.url)}
+                activeOpacity={0.7}
+              >
+                <Text className="text-primary font-medium">{link.title}</Text>
+                {link.description && (
+                  <Text className={`text-on-surface-variant${themeSuffix} text-sm mt-1`}>
+                    {link.description}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </ScrollView>
 
       {/* Action Buttons */}
@@ -357,13 +509,34 @@ export default function LearningResource() {
           >
             <Text className={`text-on-surface${themeSuffix} text-center`}>Share</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
-            className="bg-primary px-4 py-3 rounded-lg flex-1"
-            onPress={() => router.push('/panic-confirm')}
-            activeOpacity={0.7}
-          >
-            <Text className="text-on-primary text-center font-semibold">Practice Drill</Text>
-          </TouchableOpacity>
+          
+          {resource.resource_type === "quiz" ? (
+            <TouchableOpacity 
+              className="bg-primary px-4 py-3 rounded-lg flex-1"
+              onPress={quizSubmitted ? handleQuizReset : submitQuiz}
+              activeOpacity={0.7}
+            >
+              <Text className="text-on-primary text-center font-semibold">
+                {quizSubmitted ? "Try Again" : "Submit Quiz"}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity 
+              className="bg-primary px-4 py-3 rounded-lg flex-1"
+              onPress={() => {
+                // Mark as completed if not already
+                if (resource.user_progress && !resource.user_progress.completed) {
+                  // You might want to make an API call here to update progress
+                }
+                router.push('/panic-confirm');
+              }}
+              activeOpacity={0.7}
+            >
+              <Text className="text-on-primary text-center font-semibold">
+                Practice Drill
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </View>

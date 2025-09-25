@@ -1,22 +1,31 @@
-// app/report/index.tsx
+// app/user/report.tsx
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { Audio } from 'expo-av';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-    Alert,
-    Platform,
-    ScrollView,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Platform,
+  ScrollView,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { useTheme } from '../../providers/ThemeProvider';
+import { api } from '../../services/api';
 
 export default function ReportIncident() {
   const router = useRouter();
   const { effectiveTheme } = useTheme();
+
+  // Form state
   const [incidentType, setIncidentType] = useState('');
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -25,84 +34,254 @@ export default function ReportIncident() {
   const [isAnonymous, setIsAnonymous] = useState(true);
   const [mediaCaptured, setMediaCaptured] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  // Camera
+  const [permission, requestPermission] = useCameraPermissions();
+  const cameraRef = useRef<any>(null);
+  const [showCamera, setShowCamera] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+
+  // Audio
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [audioUri, setAudioUri] = useState<string | null>(null);
 
   const incidentTypes = [
     { id: 'harassment', label: 'Harassment', icon: '⚠️' },
     { id: 'robbery', label: 'Robbery', icon: '💰' },
     { id: 'assault', label: 'Assault', icon: '👊' },
     { id: 'stalking', label: 'Stalking', icon: '👁️' },
+    { id: 'theft', label: 'Theft', icon: '📱' },
+    { id: 'vandalism', label: 'Vandalism', icon: '🏚️' },
     { id: 'other', label: 'Other', icon: '❓' },
   ];
 
+  // ===== Location =====
+  const getCurrentLocation = async () => {
+    try {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Location permission is required.');
+        return;
+      }
+
+      let loc = await Location.getCurrentPositionAsync({});
+      setCurrentLocation({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      });
+
+      let [address] = await Location.reverseGeocodeAsync({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      });
+
+      if (address) {
+        const addressString = `${address.street || ''} ${address.city || ''} ${address.region || ''} ${address.postalCode || ''}`.trim();
+        setLocation(addressString || 'Current Location');
+      }
+    } catch (error) {
+      console.error('Error getting location:', error);
+      Alert.alert('Error', 'Failed to get current location.');
+    }
+  };
+
+  // ===== Date =====
   const onChangeDate = (event: any, selectedDate?: Date) => {
     const currentDate = selectedDate || date;
     setShowDatePicker(Platform.OS === 'ios');
     setDate(currentDate);
   };
 
-  const showDatepicker = () => {
-    setShowDatePicker(true);
-  };
-
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
-      year: 'numeric'
+      year: 'numeric',
     });
   };
 
+  // ===== Submit =====
   const handleSubmit = async () => {
     if (!incidentType) {
       Alert.alert('Missing Information', 'Please select an incident type');
       return;
     }
-
     if (!description) {
-      Alert.alert('Missing Information', 'Please provide a description of the incident');
+      Alert.alert('Missing Information', 'Please provide a description');
       return;
     }
 
     setIsSubmitting(true);
-    
-    // Simulate submission process
-    setTimeout(() => {
+
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) throw new Error('No authentication token found');
+
+      api.defaults.headers.Authorization = `Token ${token}`;
+
+      // 1. Submit incident report
+      const reportData = {
+        incident_type: incidentType,
+        title: `${incidentTypes.find((t) => t.id === incidentType)?.label} Incident`,
+        description,
+        location,
+        incident_date: date.toISOString(),
+        latitude: currentLocation?.latitude || null,
+        longitude: currentLocation?.longitude || null,
+        is_anonymous: isAnonymous,
+      };
+
+      const res = await api.post('/aegis/reports/submit/', reportData);
+      const incidentId = res.data.id;
+
+      // 2. Upload photo if exists
+      if (photoUri) {
+        const formData = new FormData();
+        formData.append('media_type', 'photo');
+        formData.append('file', {
+          uri: photoUri,
+          name: 'incident_photo.jpg',
+          type: 'image/jpeg',
+        } as any);
+        await api.post(`/aegis/reports/${incidentId}/media/`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+      }
+
+      // 3. Upload audio if exists
+      if (audioUri) {
+        const formData = new FormData();
+        formData.append('media_type', 'audio');
+        formData.append('file', {
+          uri: audioUri,
+          name: 'incident_audio.m4a',
+          type: 'audio/m4a',
+        } as any);
+        await api.post(`/aegis/reports/${incidentId}/media/`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+      }
+
+      // 4. Done
+      Alert.alert('Report Submitted', 'Your incident report has been submitted with media.', [
+        { text: 'OK', onPress: () => router.back() },
+      ]);
+    } catch (error: any) {
+      console.error('Error submitting report:', error);
+      let errorMessage = 'Failed to submit report. Please try again.';
+      if (error.response?.data) {
+        errorMessage =
+          typeof error.response.data === 'object'
+            ? Object.values(error.response.data).flat().join('\n')
+            : error.response.data;
+      }
+      Alert.alert('Submission Error', errorMessage);
+    } finally {
       setIsSubmitting(false);
-      Alert.alert(
-        'Report Submitted',
-        'Your incident report has been submitted successfully. Thank you for helping make our community safer.',
-        [
-          {
-            text: 'OK',
-            onPress: () => router.back()
-          }
-        ]
+    }
+  };
+
+  // ===== Media Capture =====
+  const takePhoto = async () => {
+    if (!permission?.granted) {
+      const { granted } = await requestPermission();
+      if (!granted) {
+        Alert.alert('Permission denied', 'Camera access required');
+        return;
+      }
+    }
+    setShowCamera(true);
+  };
+
+  const capturePhoto = async () => {
+    if (cameraRef.current) {
+      const photo = await cameraRef.current.takePictureAsync();
+      setPhotoUri(photo.uri);
+      setMediaCaptured(true);
+      setShowCamera(false);
+      Alert.alert('Photo Captured', 'Photo has been captured successfully.');
+    }
+  };
+
+  const recordAudio = async () => {
+    try {
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Audio recording required');
+        return;
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
-    }, 1500);
+
+      setRecording(recording);
+      Alert.alert('Recording started', 'Tap stop to end recording.');
+    } catch (err) {
+      console.error('Error recording audio', err);
+      Alert.alert('Error', 'Could not start audio recording.');
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!recording) return;
+    try {
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      setAudioUri(uri || null);
+      setRecording(null);
+      setMediaCaptured(true);
+    } catch (err) {
+      console.error('Error stopping recording', err);
+      Alert.alert('Error', 'Could not stop audio recording.');
+    }
+  };
+
+  const captureMedia = () => {
+    Alert.alert('Media Capture', 'Choose an option:', [
+      { text: 'Take Photo', onPress: takePhoto },
+      { text: 'Record Audio', onPress: recordAudio },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   return (
     <View className="flex-1 bg-background">
+      {/* Camera Modal */}
+      <Modal visible={showCamera} animationType="slide">
+        <CameraView style={{ flex: 1 }} ref={cameraRef}>
+          <View style={{ flex: 1, justifyContent: 'flex-end', marginBottom: 40, alignItems: 'center' }}>
+            <TouchableOpacity
+              onPress={capturePhoto}
+              style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: 'white' }}
+            />
+            <TouchableOpacity onPress={() => setShowCamera(false)} style={{ marginTop: 20 }}>
+              <Text style={{ color: 'white' }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </CameraView>
+      </Modal>
+
       {/* Header */}
       <View className="px-6 pt-6 pb-4">
         <View className="flex-row items-center mb-4">
-          <TouchableOpacity 
-            onPress={() => router.back()}
-            className="p-2 rounded-full bg-surface-variant mr-3"
-          >
+          <TouchableOpacity onPress={() => router.back()} className="p-2 rounded-full bg-surface-variant mr-3">
             <Text className="text-lg">←</Text>
           </TouchableOpacity>
           <Text className="text-headline text-on-surface">Report Incident</Text>
         </View>
-        <Text className="text-body text-on-surface-variant">
-          Your report helps create safer communities. All information is kept {isAnonymous ? 'anonymous' : 'confidential'}.
-        </Text>
       </View>
 
       <ScrollView className="flex-1 px-6 mt-2" showsVerticalScrollIndicator={false}>
-        {/* Incident Type Selection */}
+        {/* Incident Type */}
         <View className="mb-6">
-          <Text className="text-title text-on-surface mb-3">Incident Type *</Text>
+          <Text className="text-title mb-3">Incident Type *</Text>
           <View className="flex-row flex-wrap justify-between">
             {incidentTypes.map((type) => (
               <TouchableOpacity
@@ -111,39 +290,22 @@ export default function ReportIncident() {
                   incidentType === type.id ? 'border-primary bg-primary/10' : 'border-outline'
                 }`}
                 onPress={() => setIncidentType(type.id)}
-                activeOpacity={0.7}
               >
-                <View className="flex-row items-center">
-                  <View className={`p-2 rounded-full mr-3 ${
-                    incidentType === type.id ? 'bg-primary' : 'bg-surface-container'
-                  }`}>
-                    <Text className="text-lg">{type.icon}</Text>
-                  </View>
-                  <Text className={`font-medium ${
-                    incidentType === type.id ? 'text-primary' : 'text-on-surface'
-                  }`}>
-                    {type.label}
-                  </Text>
-                </View>
+                <Text>{type.icon} {type.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
 
-        {/* Date and Time */}
+        {/* Date */}
         <View className="mb-6">
-          <Text className="text-title text-on-surface mb-3">When did it happen?</Text>
+          <Text className="mb-3">When did it happen? *</Text>
           <TouchableOpacity
             className="p-4 rounded-xl border border-outline bg-surface-variant"
-            onPress={showDatepicker}
-            activeOpacity={0.7}
+            onPress={() => setShowDatePicker(true)}
           >
-            <View className="flex-row justify-between items-center">
-              <Text className="text-on-surface">{formatDate(date)}</Text>
-              <Text className="text-on-surface-variant">📅</Text>
-            </View>
+            <Text>{formatDate(date)} 📅</Text>
           </TouchableOpacity>
-          
           {showDatePicker && (
             <DateTimePicker
               value={date}
@@ -157,23 +319,26 @@ export default function ReportIncident() {
 
         {/* Location */}
         <View className="mb-6">
-          <Text className="text-title text-on-surface mb-3">Location (optional)</Text>
+          <Text className="mb-3">Location</Text>
           <TextInput
-            className="p-4 rounded-xl border border-outline bg-surface-variant text-on-surface"
-            placeholder="Where did it happen?"
-            placeholderTextColor="rgb(var(--color-on-surface-variant))"
+            className="p-4 rounded-xl border border-outline bg-surface-variant mb-3"
             value={location}
             onChangeText={setLocation}
+            placeholder="Where did it happen?"
           />
+          <TouchableOpacity
+            className="p-3 rounded-xl border border-primary bg-primary/5"
+            onPress={getCurrentLocation}
+          >
+            <Text>📍 Use Current Location</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Description */}
         <View className="mb-6">
-          <Text className="text-title text-on-surface mb-3">Description *</Text>
+          <Text className="mb-3">Description *</Text>
           <TextInput
-            className="p-4 rounded-xl border border-outline bg-surface-variant text-on-surface h-32"
-            placeholder="Please describe what happened..."
-            placeholderTextColor="rgb(var(--color-on-surface-variant))"
+            className="p-4 rounded-xl border border-outline bg-surface-variant h-32"
             multiline
             textAlignVertical="top"
             value={description}
@@ -181,59 +346,36 @@ export default function ReportIncident() {
           />
         </View>
 
-        {/* Media Capture */}
+        {/* Media */}
         <View className="mb-6">
-          <Text className="text-title text-on-surface mb-3">Add Evidence (optional)</Text>
+          <Text className="mb-3">Add Evidence (optional)</Text>
           <TouchableOpacity
-            className="p-4 rounded-xl border border-outline bg-surface-variant flex-row justify-between items-center"
-            onPress={() => {
-              setMediaCaptured(true);
-              Alert.alert('Media Capture', 'Media would be captured discreetly');
-            }}
-            activeOpacity={0.7}
+            className="p-4 rounded-xl border border-outline bg-surface-variant"
+            onPress={captureMedia}
           >
-            <View className="flex-row items-center">
-              <View className="p-2 rounded-full bg-surface-container mr-3">
-                <Text className="text-lg">📸</Text>
-              </View>
-              <Text className="text-on-surface">
-                {mediaCaptured ? 'Media attached' : 'Take photo/audio discreetly'}
-              </Text>
-            </View>
-            <Text className="text-on-surface-variant">→</Text>
+            <Text>{mediaCaptured ? '📎 Media attached' : '📸 Take photo / 🎙️ Record audio'}</Text>
           </TouchableOpacity>
+          {recording && (
+            <TouchableOpacity className="mt-3 p-3 bg-red-500 rounded-xl" onPress={stopRecording}>
+              <Text className="text-white">Stop Recording</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Anonymous Toggle */}
-        <View className="mb-8">
-          <View className="flex-row justify-between items-center p-4 rounded-xl bg-surface-variant">
-            <View className="flex-1">
-              <Text className="text-on-surface font-medium">Submit Anonymously</Text>
-              <Text className="text-label text-on-surface-variant mt-1">
-                Your personal information will not be shared
-              </Text>
-            </View>
-            <Switch
-              value={isAnonymous}
-              onValueChange={setIsAnonymous}
-              trackColor={{ false: '#767577', true: 'rgb(var(--color-primary))' }}
-              thumbColor={isAnonymous ? '#f4f3f4' : '#f4f3f4'}
-            />
-          </View>
+        {/* Anonymous */}
+        <View className="mb-8 flex-row justify-between items-center p-4 rounded-xl bg-surface-variant">
+          <Text>Submit Anonymously</Text>
+          <Switch value={isAnonymous} onValueChange={setIsAnonymous} />
         </View>
 
-        {/* Submit Button */}
+        {/* Submit */}
         <TouchableOpacity
           className={`p-5 rounded-xl mb-10 ${isSubmitting ? 'bg-primary/70' : 'bg-primary'}`}
           onPress={handleSubmit}
           disabled={isSubmitting}
-          activeOpacity={0.8}
         >
           <View className="flex-row justify-center items-center">
-            <Text className="text-lg mr-2">{isSubmitting ? '⏳' : '🛡️'}</Text>
-            <Text className="text-on-primary font-semibold">
-              {isSubmitting ? 'Submitting...' : 'Submit Report'}
-            </Text>
+            {isSubmitting ? <ActivityIndicator color="white" /> : <Text>🛡️ Submit Report</Text>}
           </View>
         </TouchableOpacity>
       </ScrollView>
