@@ -31,9 +31,9 @@ interface EmergencyInfo {
 // Helper function to construct full image URL
 const getFullImageUrl = (relativePath: string | null) => {
   if (!relativePath) return '';
-  
-  const baseUrl = 'http://192.168.1.161:8000';
-  
+
+  const baseUrl = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.203:8000';
+
   if (relativePath.startsWith('http')) {
     return relativePath;
   }
