@@ -397,7 +397,7 @@ export default function EmergencyDetails() {
 
       {/* Response Time Indicator */}
       <View className="absolute top-4 right-4 bg-panic/90 px-3 py-2 rounded-full">
-        <Text className="text-white text-sm">Response: {timeElapsed}s</Text>
+        <Text className="text-green-500 text-sm">Response: {timeElapsed}s</Text>
       </View>
     </View>
   );

@@ -1,4 +1,4 @@
-// app/user/settings.tsx
+// app/agent/settings.tsx
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native';

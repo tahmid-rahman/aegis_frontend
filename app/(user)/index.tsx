@@ -24,7 +24,7 @@ export default function Dashboard() {
       description: 'Trigger immediate help',
       icon: '🚨', 
       color: 'bg-panic', 
-      action: () => router.push('/panic-confirm'),
+      action: () => router.push('/(user)/panic-confirm'),
       emergency: true
     },
     { 
@@ -42,7 +42,7 @@ export default function Dashboard() {
       description: 'Record evidence discreetly',
       icon: '📸', 
       color: 'bg-secondary', 
-      action: () => router.push('/silent-capture') 
+      action: () => router.push('/(user)/silent-capture') 
     },
     { 
       title: 'Safety Check', 
@@ -63,7 +63,7 @@ export default function Dashboard() {
       description: 'View safe paths home',
       icon: '🗺️', 
       color: 'bg-accent', 
-      action: () => router.push('/safe-routes') 
+      action: () => router.push('/(user)/safe-routes') 
     },
   ];
 
@@ -84,7 +84,7 @@ export default function Dashboard() {
       title: 'Legal Rights', 
       description: 'Know your legal protections', 
       icon: '📖',
-      action: () => router.push('/legal-rights')
+      action: () => router.push('/(user)/legal-rights')
     },
   ];
 
@@ -105,7 +105,7 @@ export default function Dashboard() {
             </View>
             <TouchableOpacity 
               className="bg-surface-variant p-3 rounded-full"
-              onPress={() => router.push('/profile')}
+              onPress={() => router.push('/(user)/profile')}
             >
               <Text className="text-xl">👤</Text>
             </TouchableOpacity>

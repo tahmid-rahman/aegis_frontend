@@ -312,13 +312,18 @@ export default function ResponderDashboard() {
               <Text className="text-on-surface text-center">Area Map</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity className="bg-surface-variant w-[48%] p-4 rounded-xl items-center mb-3">
+            <TouchableOpacity 
+                className="bg-surface-variant w-[48%] p-4 rounded-xl items-center mb-3"
+                onPress={() => router.push('/(agent)/stats')}
+                >
               <Text className="text-2xl mb-2">📊</Text>
               <Text className="text-on-surface text-center">My Stats</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity className="bg-surface-variant w-[48%] p-4 rounded-xl items-center">
-              <Text className="text-2xl mb-2">📞</Text>
+            <TouchableOpacity 
+            className="bg-surface-variant w-[48%] p-4 rounded-xl items-center"
+            >
+            <Text className="text-2xl mb-2">📞</Text>
               <Text className="text-on-surface text-center">Control Center</Text>
             </TouchableOpacity>
             
