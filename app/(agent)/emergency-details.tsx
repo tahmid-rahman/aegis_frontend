@@ -145,7 +145,7 @@ export default function EmergencyDetails() {
                 [
                   {
                     text: "Submit Report",
-                    onPress: () => router.push('/agent/incident-report')
+                    onPress: () => router.push('/(agent)/incident-report')
                   },
                   {
                     text: "Back to Dashboard",
@@ -386,7 +386,7 @@ export default function EmergencyDetails() {
             
             <TouchableOpacity
               className="flex-1 bg-surface-variant py-4 rounded-xl items-center"
-              onPress={() => router.push('/agent/incident-report')}
+              onPress={() => router.push('/(agent)/incident-report')}
             >
               <Text className="text-2xl mb-1">📝</Text>
               <Text className="text-on-surface font-semibold">Incident Report</Text>
