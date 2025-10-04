@@ -1,9 +1,6 @@
 import axios from 'axios';
 
-// const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/api';
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.203:8000/api';
-// const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.15.39.44:8000/api';
-// const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.68.101:8000/api';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
 
 export const api = axios.create({
