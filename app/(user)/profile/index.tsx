@@ -32,7 +32,7 @@ interface EmergencyInfo {
 const getFullImageUrl = (relativePath: string | null) => {
   if (!relativePath) return '';
 
-  const baseUrl = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.203:8000';
+  const baseUrl = process.env.EXPO_PUBLIC_URL;
 
   if (relativePath.startsWith('http')) {
     return relativePath;

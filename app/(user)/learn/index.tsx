@@ -1,5 +1,5 @@
 // app/user/learn/index.tsx
-import ResourceCard from '@/components/ui/ResourceCard';
+import ResourceCard from '@/components/ui/ResourceCard1';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -7,9 +7,9 @@ import { ActivityIndicator, Alert, ScrollView, SectionList, Text, TouchableOpaci
 import { useTheme } from '../../../providers/ThemeProvider';
 import { api } from '../../../services/api';
 
-// 🔹 Resource type - Match the ResourceCard expected type
-type ResourceType = "video" | "article" | "quiz" | "guide" | "tutorial";
-type IconType = "BookOpen" | "Video" | "FileText";
+// 🔹 Resource type - Match the backend API structure
+type ResourceType = "article" | "video" | "quiz" | "guide" | "tutorial";
+type IconType = "BookOpen" | "Video" | "FileText" | "HelpCircle" | "Book";
 
 type Resource = {
   id: number;
@@ -19,6 +19,7 @@ type Resource = {
   type: ResourceType;
   icon: IconType;
   category: string;
+  category_name?: string;
   user_progress?: {
     completed: boolean;
     progress_percentage: number;
@@ -56,42 +57,83 @@ export default function LearnScreen() {
   const [categoryFilters, setCategoryFilters] = useState<CategoryFilter[]>([]);
   const [showOnlyBookmarked, setShowOnlyBookmarked] = useState(false);
 
+  // Map backend resource_type to frontend type and icon
+  const mapResourceData = (item: any): Resource => {
+    const resourceTypeMap: Record<string, ResourceType> = {
+      'article': 'article',
+      'video': 'video', 
+      'quiz': 'quiz',
+      'guide': 'guide',
+      'tutorial': 'tutorial'
+    };
+
+    const iconMap: Record<string, IconType> = {
+      'article': 'BookOpen',
+      'video': 'Video',
+      'quiz': 'HelpCircle',
+      'guide': 'Book',
+      'tutorial': 'FileText'
+    };
+
+    return {
+      id: item.id,
+      title: item.title || 'Untitled Resource',
+      description: item.description || 'No description available',
+      duration: item.duration || '5 min',
+      type: resourceTypeMap[item.resource_type] || 'article',
+      icon: iconMap[item.resource_type] || 'BookOpen',
+      category: item.category_name || item.category?.name || 'General',
+      category_name: item.category_name || item.category?.name,
+      user_progress: item.user_progress,
+      is_bookmarked: item.is_bookmarked || item.user_progress?.bookmarked || false
+    };
+  };
+
   const fetchResources = async () => {
     try {
       setLoading(true);
       const token = await AsyncStorage.getItem('auth_token');
+      
       if (!token) {
-        throw new Error('No authentication token found');
+        Alert.alert('Authentication Required', 'Please login to access learning resources');
+        router.push('/login');
+        return;
       }
 
-      api.defaults.headers.Authorization = `Token ${token}`;
-      
+      // Build query params for filtering
+      const params: any = {};
+      if (activeCategory !== "all") {
+        const activeFilter = categoryFilters.find(f => f.id === activeCategory);
+        if (activeFilter) {
+          if (activeFilter.apiField === 'type') {
+            params.type = activeCategory;
+          } else if (activeFilter.apiField === 'category') {
+            params.category = activeCategory;
+          }
+        }
+      }
+
       // Fetch resources based on whether we're showing bookmarked items or all
       const endpoint = showOnlyBookmarked 
         ? '/aegis/learn/bookmarks/' 
         : '/aegis/learn/resources/';
       
-      const response = await api.get(endpoint);
+      const response = await api.get(endpoint, { params });
       
       console.log('Resources API Response:', response.data);
       
-      const transformedResources: Resource[] = response.data.map((item: any) => ({
-        id: item.id,
-        title: item.title,
-        description: item.description,
-        duration: item.duration,
-        type: item.type,
-        icon: item.icon === "HelpCircle" ? "FileText" : item.icon,
-        category: item.category || item.type || 'uncategorized',
-        user_progress: item.user_progress,
-        is_bookmarked: item.is_bookmarked,
-      }));
+      const transformedResources: Resource[] = response.data.map(mapResourceData);
       
       setResources(transformedResources);
       
     } catch (error: any) {
       console.error('Error fetching resources:', error);
-      Alert.alert('Error', 'Failed to load learning resources. Please try again.');
+      if (error.response?.status === 401) {
+        Alert.alert('Session Expired', 'Please login again');
+        router.push('/login');
+      } else {
+        Alert.alert('Error', 'Failed to load learning resources. Please try again.');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -103,17 +145,19 @@ export default function LearnScreen() {
       const token = await AsyncStorage.getItem('auth_token');
       if (!token) return;
 
-      api.defaults.headers.Authorization = `Token ${token}`;
       const response = await api.get('/aegis/learn/categories/');
       setCategories(response.data);
       
       console.log('Categories API Response:', response.data);
 
-      const apiCategoryFilters: CategoryFilter[] = response.data.map((category: Category) => ({
-        id: category.name.toLowerCase(),
-        label: category.name,
-        apiField: 'category'
-      }));
+      // Create category filters from API response
+      const apiCategoryFilters: CategoryFilter[] = response.data
+        .filter((category: Category) => category.resource_count > 0)
+        .map((category: Category) => ({
+          id: category.name.toLowerCase().replace(/\s+/g, '-'),
+          label: category.name,
+          apiField: 'category'
+        }));
 
       const defaultFilters: CategoryFilter[] = [
         { id: "all", label: "All", apiField: 'all' },
@@ -124,18 +168,19 @@ export default function LearnScreen() {
         { id: "tutorial", label: "Tutorials", apiField: 'type' },
       ];
 
-      const uniqueFilters = [...defaultFilters];
-      
+      // Merge filters, ensuring no duplicates
+      const allFilters = [...defaultFilters];
       apiCategoryFilters.forEach(apiFilter => {
-        if (!uniqueFilters.some(filter => filter.id === apiFilter.id)) {
-          uniqueFilters.push(apiFilter);
+        if (!allFilters.some(filter => filter.id === apiFilter.id)) {
+          allFilters.push(apiFilter);
         }
       });
 
-      setCategoryFilters(uniqueFilters);
+      setCategoryFilters(allFilters);
       
     } catch (error: any) {
       console.error('Error fetching categories:', error);
+      // Fallback filters
       setCategoryFilters([
         { id: "all", label: "All", apiField: 'all' },
         { id: "video", label: "Videos", apiField: 'type' },
@@ -152,7 +197,6 @@ export default function LearnScreen() {
       const token = await AsyncStorage.getItem('auth_token');
       if (!token) return;
 
-      api.defaults.headers.Authorization = `Token ${token}`;
       const response = await api.post(`/aegis/learn/resources/${resourceId}/bookmark/`);
       
       setResources(prev => prev.map(resource => {
@@ -182,12 +226,16 @@ export default function LearnScreen() {
 
   const toggleShowBookmarked = () => {
     setShowOnlyBookmarked(prev => !prev);
+    setActiveCategory("all"); // Reset category filter when toggling bookmarks
   };
 
   useEffect(() => {
     fetchResources();
+  }, [activeCategory, showOnlyBookmarked]);
+
+  useEffect(() => {
     fetchCategories();
-  }, [showOnlyBookmarked]);
+  }, []);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -195,29 +243,32 @@ export default function LearnScreen() {
     fetchCategories();
   };
 
-  // SAFE FILTERING FUNCTION - Fixed the undefined error
-  const filteredResources = activeCategory === "all"
-    ? resources
-    : resources.filter((resource) => {
-        const activeFilter = categoryFilters.find(f => f.id === activeCategory);
-        
-        if (!activeFilter) return false;
+  // Filter resources safely
+  const filteredResources = resources.filter((resource) => {
+    if (showOnlyBookmarked && !resource.is_bookmarked) {
+      return false;
+    }
+    
+    if (activeCategory === "all") {
+      return true;
+    }
 
-        if (activeFilter.apiField === 'type') {
-          return resource.type === activeCategory;
-        } else if (activeFilter.apiField === 'category') {
-          // SAFEST APPROACH: Check if category exists and is a string
-          if (typeof resource.category !== 'string' || !resource.category) {
-            return false; // Skip resources with invalid categories
-          }
-          return resource.category.toLowerCase() === activeCategory;
-        }
-        
-        return false;
-      });
+    const activeFilter = categoryFilters.find(f => f.id === activeCategory);
+    if (!activeFilter) return false;
+
+    if (activeFilter.apiField === 'type') {
+      return resource.type === activeCategory;
+    } else if (activeFilter.apiField === 'category') {
+      const resourceCategory = resource.category?.toLowerCase().replace(/\s+/g, '-');
+      return resourceCategory === activeCategory;
+    }
+    
+    return false;
+  });
 
   const getCategoryLabel = () => {
-    if (activeCategory === "all") return showOnlyBookmarked ? "Bookmarked Resources" : "All Resources";
+    if (showOnlyBookmarked) return "Bookmarked Resources";
+    if (activeCategory === "all") return "All Resources";
     
     const filterCategory = categoryFilters.find((c) => c.id === activeCategory);
     return filterCategory?.label || activeCategory;
@@ -232,7 +283,10 @@ export default function LearnScreen() {
 
   const themeSuffix = effectiveTheme === "dark" ? "-dark" : "";
 
-  if (loading) {
+  // Check if we should show the category filters
+  const shouldShowCategoryFilters = categoryFilters.length > 0 && !showOnlyBookmarked;
+
+  if (loading && resources.length === 0) {
     return (
       <View className={`flex-1 bg-background${themeSuffix} items-center justify-center`}>
         <ActivityIndicator size="large" color={effectiveTheme === 'dark' ? '#fff' : '#000'} />
@@ -243,6 +297,7 @@ export default function LearnScreen() {
 
   return (
     <View className={`flex-1 bg-background${themeSuffix}`}>
+      {/* Header */}
       <View className="flex-row justify-between items-center px-6 pt-6 mb-4">
         <Text className={`text-2xl font-bold text-on-surface${themeSuffix}`}>
           Learn Safety Skills
@@ -267,73 +322,92 @@ export default function LearnScreen() {
         </TouchableOpacity>
       </View>
 
-      <SectionList
-        sections={sections}
-        renderSectionHeader={({ section: { title } }) => (
-          <>
-            <View className="px-6 mb-4">
-              <Text className={`text-lg font-semibold text-on-surface${themeSuffix}`}>
-                {title} ({filteredResources.length})
-              </Text>
-            </View>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              className="px-6 mb-4"
-            >
-              {categoryFilters.map((category) => (
-                <TouchableOpacity
-                  key={category.id}
-                  onPress={() => setActiveCategory(category.id)}
-                  className={`mr-3 px-4 py-2 rounded-full ${
+      {/* Category Filters - Only show when not in bookmarks mode and filters exist */}
+      {shouldShowCategoryFilters && (
+        <View className="mb-4">
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            className="px-6"
+            contentContainerStyle={{ paddingRight: 20 }}
+          >
+            {categoryFilters.map((category) => (
+              <TouchableOpacity
+                key={category.id}
+                onPress={() => setActiveCategory(category.id)}
+                className={`mr-3 px-4 py-2 rounded-full ${
+                  activeCategory === category.id
+                    ? "bg-primary"
+                    : `bg-surface-variant${themeSuffix} border border-outline${themeSuffix}`
+                }`}
+              >
+                <Text
+                  className={`font-medium ${
                     activeCategory === category.id
-                      ? "bg-primary"
-                      : `bg-surface-variant${themeSuffix} border border-outline${themeSuffix}`
+                      ? "text-on-primary"
+                      : `text-on-surface-variant${themeSuffix}`
                   }`}
                 >
-                  <Text
-                    className={`font-medium ${
-                      activeCategory === category.id
-                        ? "text-on-primary"
-                        : `text-on-surface-variant${themeSuffix}`
-                    }`}
-                  >
-                    {category.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </>
+                  {category.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Resources List */}
+      <SectionList
+        sections={sections}
+        renderSectionHeader={({ section }) => (
+          <View className="px-6 mb-4">
+            <Text className={`text-lg font-semibold text-on-surface${themeSuffix}`}>
+              {section.title} ({section.data.length})
+            </Text>
+          </View>
         )}
         renderItem={({ item }) => (
-          <ResourceCard
-            resource={item}
-            onPress={() => {
-              if (item.type === "quiz") {
-                router.push(`/(user)/learn/quiz/${item.id}`);
-              } else if (item.type === "video") {
-                router.push(`/(user)/learn/video/${item.id}`);
-              } else {
-                router.push(`/(user)/learn/${item.id}`);
-              }
-            }}
-            onBookmarkPress={() => toggleBookmark(item.id)}
-            isBookmarked={item.is_bookmarked || false}
-          />
+          <View className="px-6 mb-4">
+            <ResourceCard
+              resource={item}
+              onPress={() => {
+                // Navigate based on resource type
+                if (item.type === "quiz") {
+                  router.push(`/(user)/learn/quiz/${item.id}`);
+                } else if (item.type === "video") {
+                  router.push(`/(user)/learn/video/${item.id}`);
+                } else {
+                  router.push(`/(user)/learn/${item.id}`);
+                }
+              }}
+              onBookmarkPress={() => toggleBookmark(item.id)}
+              isBookmarked={item.is_bookmarked || false}
+            />
+          </View>
         )}
         keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={{ paddingBottom: 80 }}
+        contentContainerStyle={{ 
+          paddingBottom: 100,
+          // Ensure proper spacing when empty
+          flexGrow: filteredResources.length === 0 ? 1 : 0 
+        }}
         stickySectionHeadersEnabled={false}
         refreshing={refreshing}
         onRefresh={handleRefresh}
         ListEmptyComponent={
-          <View className="px-6 py-8 items-center">
-            <Text className={`text-on-surface-variant${themeSuffix} text-center`}>
+          <View className="flex-1 justify-center items-center px-6 py-8" style={{ minHeight: 300 }}>
+            <Text className={`text-on-surface-variant${themeSuffix} text-center text-lg mb-2`}>
               {showOnlyBookmarked
-                ? "No bookmarked resources found."
+                ? "No bookmarked resources yet"
                 : activeCategory === "all" 
-                  ? "No learning resources available." 
-                  : `No ${getCategoryLabel()} found. Try checking another category.`
+                  ? "No learning resources available" 
+                  : `No ${getCategoryLabel().toLowerCase()} found`
+              }
+            </Text>
+            <Text className={`text-on-surface-variant${themeSuffix} text-center`}>
+              {showOnlyBookmarked 
+                ? "Bookmark resources to see them here"
+                : "Check back later for new content"
               }
             </Text>
           </View>

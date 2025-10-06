@@ -163,6 +163,7 @@ export default function ReportIncident() {
         });
       }
 
+
       // 4. Done
       Alert.alert('Report Submitted', 'Your incident report has been submitted with media.', [
         { text: 'OK', onPress: () => router.back() },
