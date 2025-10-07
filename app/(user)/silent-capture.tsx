@@ -1,14 +1,16 @@
 // app/user/silent-capture.tsx
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { FontAwesome5, Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { ResizeMode, Video } from 'expo-av';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useRouter } from 'expo-router';
+import * as Location from 'expo-location';
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Animated,
-  AppState,
-  AppStateStatus,
-  Switch,
+  Modal,
+  ScrollView,
+  StatusBar,
   Text,
   TouchableOpacity,
   Vibration,
@@ -17,642 +19,718 @@ import {
 import { useTheme } from '../../providers/ThemeProvider';
 import { api } from '../../services/api';
 
-export default function SilentCapture() {
-  const router = useRouter();
-  const { effectiveTheme } = useTheme();
+interface VideoEvidenceData {
+  title: string;
+  location_lat: number | null;
+  location_lng: number | null;
+  location_address: string;
+  recorded_at: string;
+  is_anonymous: boolean;
+  duration_seconds: number;
+  type: string;
+}
 
-  // Camera state
+const EVIDENCE_TYPES = [
+  { value: 'harassment', label: 'Harassment', icon: 'visibility-off' },
+  { value: 'robbery', label: 'Robbery', icon: 'security' },
+  { value: 'assault', label: 'Assault', icon: 'warning' },
+  { value: 'stalking', label: 'Stalking', icon: 'person-remove' },
+  { value: 'unknown', label: 'Unknown', icon: 'help' },
+];
+
+export default function SilentCaptureScreen() {
+  const { theme, isDark } = useTheme();
   const [permission, requestPermission] = useCameraPermissions();
-  const cameraRef = useRef<any>(null);
+  const cameraRef = useRef<CameraView>(null);
+  const videoRef = useRef<Video>(null);
   const [isRecording, setIsRecording] = useState(false);
-  const [videoUri, setVideoUri] = useState<string | null>(null);
-  const [stealthMode, setStealthMode] = useState(true);
-  const [displayValue, setDisplayValue] = useState('0');
-  const [previousValue, setPreviousValue] = useState('');
-  const [operation, setOperation] = useState('');
-  const appState = useRef(AppState.currentState);
-  const [cameraReady, setCameraReady] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [recordingTimer, setRecordingTimer] = useState<NodeJS.Timeout | null>(null);
+  const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [locationAddress, setLocationAddress] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [evidenceType, setEvidenceType] = useState('unknown');
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [capturedVideo, setCapturedVideo] = useState<string | null>(null);
+  
+  // Stealth Mode States
+  const [stealthMode, setStealthMode] = useState(false);
+  const [screenOff, setScreenOff] = useState(true);
+  const [isMinimalUI, setIsMinimalUI] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  
+  // Animation refs
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  
+  // Triple tap detection
+  const tapCount = useRef(0);
+  const lastTap = useRef(0);
 
-  // Long press state
-  const [pressTimer, setPressTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
-  const [pressProgress, setPressProgress] = useState(0);
-  const progressAnim = useRef(new Animated.Value(0)).current;
-  const [showProgress, setShowProgress] = useState(false);
-
-  // Recording state
-  const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
-  const [recordingDuration, setRecordingDuration] = useState(0);
-  const [recordingPromise, setRecordingPromise] = useState<Promise<any> | null>(null);
-  const [durationInterval, setDurationInterval] = useState<ReturnType<typeof setInterval> | null>(null);
-
-  // ===== Camera Initialization =====
+  // Initialize stealth mode screen state
   useEffect(() => {
-    // Initialize camera when component mounts
-    const initializeCamera = async () => {
+    if (stealthMode) {
+      setScreenOff(true);
+    }
+  }, [stealthMode]);
+
+  // Pulsing animation for stealth indicator
+  useEffect(() => {
+    if (stealthMode && isRecording) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 0.3,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    } else {
+      pulseAnim.setValue(1);
+    }
+  }, [stealthMode, isRecording]);
+
+  const handleTripleTap = () => {
+    const now = Date.now();
+    if (now - lastTap.current < 300) {
+      tapCount.current += 1;
+    } else {
+      tapCount.current = 1;
+    }
+    lastTap.current = now;
+
+    if (tapCount.current === 3) {
+      tapCount.current = 0;
+      if (stealthMode) {
+        toggleStealthMode();
+      }
+    }
+  };
+
+  const toggleStealthMode = () => {
+    if (!stealthMode) {
+      // Enable stealth mode
+      Vibration.vibrate(50);
+      setStealthMode(true);
+      setIsMinimalUI(true);
+      setScreenOff(true);
+      
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+      
+      if (!isRecording) {
+        Alert.alert(
+          'Stealth Mode Activated',
+          'Screen will appear black. Recording continues in background. Triple-tap anywhere to exit.',
+          [{ text: 'Understood', style: 'default' }]
+        );
+      }
+    } else {
+      // Disable stealth mode
+      setStealthMode(false);
+      setScreenOff(false);
+      setIsMinimalUI(false);
+      
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  };
+
+  const toggleScreen = () => {
+    if (stealthMode) {
+      setScreenOff(!screenOff);
+      Vibration.vibrate(10);
+      
+      // Auto hide screen after 3 seconds if showing
+      if (!screenOff) {
+        setTimeout(() => {
+          if (stealthMode) {
+            setScreenOff(true);
+          }
+        }, 3000);
+      }
+    }
+  };
+
+  useEffect(() => {
+    (async () => {
       if (!permission?.granted) {
         await requestPermission();
       }
-      // Camera will be ready after a short delay
-      setTimeout(() => {
-        setCameraReady(true);
-        console.log('🟢 Camera initialized and ready');
-      }, 2000);
-    };
 
-    initializeCamera();
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Location access is needed for evidence documentation.');
+        return;
+      }
+
+      try {
+        const location = await Location.getCurrentPositionAsync({});
+        setLocation(location);
+        
+        const address = await Location.reverseGeocodeAsync({
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        });
+        
+        if (address[0]) {
+          const addr = `${address[0].name}, ${address[0].city}, ${address[0].region}`;
+          setLocationAddress(addr);
+        }
+      } catch (error) {
+        console.warn('Could not get location:', error);
+      }
+    })();
   }, []);
 
-  // ===== App State Handling =====
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-    return () => {
-      subscription.remove();
-      if (pressTimer) clearTimeout(pressTimer);
-      if (durationInterval) clearInterval(durationInterval);
-    };
-  }, [isRecording, stealthMode]);
-
-  const handleAppStateChange = (nextAppState: AppStateStatus) => {
-    if (appState.current.match(/active/) && nextAppState === 'background') {
-      if (isRecording) {
-        stopRecording();
-      }
-    }
-    appState.current = nextAppState;
-  };
-
-  // ===== Long Press Handler =====
-  const handleButtonPressIn = (button: string) => {
-    if (button === '3' && !isRecording && stealthMode && cameraReady) {
-      setShowProgress(true);
-      setPressProgress(0);
-      
-      Animated.timing(progressAnim, {
-        toValue: 1,
-        duration: 3000,
-        useNativeDriver: false,
-      }).start();
-
-      let progress = 0;
-      const interval = setInterval(() => {
-        progress += 0.1;
-        setPressProgress(progress);
-        if (progress >= 1) {
-          clearInterval(interval);
-          startRecording();
-          setShowProgress(false);
-        }
-      }, 300);
-
-      const timer = setTimeout(() => {
-        clearInterval(interval);
-        startRecording();
-        setShowProgress(false);
-      }, 3000);
-
-      setPressTimer(timer);
-    }
-  };
-
-  const handleButtonPressOut = (button: string) => {
-    if (button === '3' && pressTimer) {
-      clearTimeout(pressTimer);
-      setPressTimer(null);
-      Animated.timing(progressAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: false,
-      }).start();
-      setPressProgress(0);
-      setShowProgress(false);
-    }
-  };
-
-  // ===== Button Handler =====
-  const handleCalculatorButton = (button: string) => {
-    if (button === '0' && isRecording) {
-      stopRecording();
-      return;
-    }
-
-    if (button !== '3' || isRecording) {
-      // ... existing calculator logic (same as before) ...
-      if (button === 'C') {
-        setDisplayValue('0');
-        setPreviousValue('');
-        setOperation('');
-      } else if (button === '±') {
-        setDisplayValue(prev => prev.startsWith('-') ? prev.slice(1) : '-' + prev);
-      } else if (button === '%') {
-        setDisplayValue(prev => (parseFloat(prev) / 100).toString());
-      } else if (['÷', '×', '−', '+'].includes(button)) {
-        setPreviousValue(displayValue);
-        setOperation(button);
-        setDisplayValue('0');
-      } else if (button === '=') {
-        if (previousValue && operation) {
-          const prev = parseFloat(previousValue);
-          const current = parseFloat(displayValue);
-          let result = 0;
-          
-          switch (operation) {
-            case '+': result = prev + current; break;
-            case '−': result = prev - current; break;
-            case '×': result = prev * current; break;
-            case '÷': result = prev / current; break;
-          }
-          
-          setDisplayValue(result.toString());
-          setPreviousValue('');
-          setOperation('');
-        }
-      } else if (button === '.') {
-        if (!displayValue.includes('.')) {
-          setDisplayValue(prev => prev + '.');
-        }
-      } else if (button === '3' && isRecording) {
-        setDisplayValue(prev => prev === '0' ? button : prev + button);
-      } else if (button !== '3') {
-        setDisplayValue(prev => prev === '0' ? button : prev + button);
-      }
-    }
-  };
-
   const startRecording = async () => {
-    if (!permission?.granted) {
-      const { granted } = await requestPermission();
-      if (!granted) {
-        Alert.alert('Permission denied', 'Camera access required');
-        return;
-      }
-    }
-
-    if (!cameraReady) {
-      Alert.alert('Camera Not Ready', 'Please wait for camera to initialize');
-      return;
-    }
+    if (!cameraRef.current || isRecording) return;
 
     try {
-      console.log('🟡 Starting recording...');
       setIsRecording(true);
-      setRecordingStartTime(Date.now());
-      setRecordingDuration(0);
-      Vibration.vibrate(100);
+      setRecordingTime(0);
+      
+      // Start recording timer
+      const timer = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+      setRecordingTimer(timer);
 
-      if (!cameraRef.current) {
-        console.error('🔴 Camera ref is null');
-        throw new Error('Camera not available');
-      }
-
-      console.log('🟡 Camera ref found, preparing to record...');
-      
-      // Longer delay to ensure camera is fully ready
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      console.log('🟡 Starting camera recording...');
-      
-      // Use a more reliable recording approach
-      const recordingOptions = {
-        quality: '480p',
+      const videoRecordPromise = cameraRef.current.recordAsync({
         maxDuration: 300,
-        mute: true,
-        codec: 'h264', // Specify codec for better compatibility
-      };
-
-      console.log('🟡 Recording options:', recordingOptions);
-      
-      const recordingPromise = cameraRef.current.recordAsync(recordingOptions);
-      setRecordingPromise(recordingPromise);
-      
-      console.log('🟢 Recording started successfully, waiting for completion...');
-      
-      // Start duration timer with longer initial delay
-      setTimeout(() => {
-        const interval = setInterval(() => {
-          setRecordingDuration(prev => {
-            const newDuration = prev + 1;
-            console.log(`⏱️ Recording duration: ${newDuration}s`);
-            return newDuration;
-          });
-        }, 1000);
-        setDurationInterval(interval);
-      }); 
-      
-      // Wait for recording promise
-      const video = await recordingPromise;
-      
-      if (durationInterval) {
-        clearInterval(durationInterval);
-        setDurationInterval(null);
-      }
-      
-      console.log('🟢 Recording completed, video URI:', video?.uri);
-      
-      if (video?.uri) {
-        setVideoUri(video.uri);
-        console.log('✅ Video URI set successfully');
-        showUploadConfirmation(video.uri, recordingDuration);
-      } else {
-        console.error('🔴 No video URI received from recording');
-        throw new Error('No video data produced');
-      }
-      
-    } catch (error: any) {
-      console.error('🔴 Error during recording process:', error);
-      Alert.alert('Recording Error', 'Could not complete video recording. Please try again.');
-      
-      // Clean up state
-      setIsRecording(false);
-      setRecordingStartTime(null);
-      setRecordingDuration(0);
-      setRecordingPromise(null);
-      if (durationInterval) {
-        clearInterval(durationInterval);
-        setDurationInterval(null);
-      }
-    }
-  };
-
-  const stopRecording = async () => {
-    try {
-      console.log('🟡 Stopping recording...');
-      
-      if (!cameraRef.current) {
-        console.error('🔴 Camera ref is null during stop');
-        throw new Error('Camera not available');
-      }
-
-      if (!isRecording) {
-        console.log('🟡 No active recording to stop');
-        return;
-      }
-
-      console.log('🟡 Stopping camera recording...');
-      
-      // Stop the recording
-      cameraRef.current.stopRecording();
-      
-      console.log('🟢 Camera recording stopped command sent');
-      
-      // Clear interval
-      if (durationInterval) {
-        clearInterval(durationInterval);
-        setDurationInterval(null);
-      }
-      
-      const finalDuration = recordingDuration;
-      console.log(`📊 Final recording duration: ${finalDuration} seconds`);
-      
-      setIsRecording(false);
-      setRecordingStartTime(null);
-      setRecordingDuration(0);
-      setRecordingPromise(null);
-      
-      Vibration.vibrate([100, 50, 100]);
-      
-    } catch (error) {
-      console.error('🔴 Error stopping recording:', error);
-      Alert.alert('Error', 'Could not stop video recording.');
-      
-      // Clean up state
-      setIsRecording(false);
-      setRecordingStartTime(null);
-      setRecordingDuration(0);
-      setRecordingPromise(null);
-      if (durationInterval) {
-        clearInterval(durationInterval);
-        setDurationInterval(null);
-      }
-    }
-  };
-
-  //  Upload Confirmation Alert 
-  const showUploadConfirmation = (uri: string, duration: number) => {
-    Alert.alert(
-      'Recording Complete',
-      `Recording duration: ${duration} seconds\n\nWould you like to upload this evidence or cancel?`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-          onPress: () => {
-            setVideoUri(null);
-            console.log('Upload canceled by user');
-          }
-        },
-        {
-          text: 'Upload',
-          style: 'default',
-          onPress: () => uploadVideo(uri, duration)
-        }
-      ],
-      { cancelable: false }
-    );
-  };
-
-  // ===== Video Upload =====
-  const uploadVideo = async (uri: string, duration: number) => {
-    try {
-      console.log('🟡 Starting video upload...');
-      const token = await AsyncStorage.getItem('auth_token');
-      if (!token) throw new Error('No authentication token found');
-
-      api.defaults.headers.Authorization = `Token ${token}`;
-
-      const reportData = {
-        title: 'Silently Captured Evidence',
-        location_address: 'Recorded via stealth mode',
-        recorded_at: new Date().toISOString(),
-        is_anonymous: true,
-        duration_seconds: duration,
-      };
-
-      console.log('🟡 Creating evidence record...');
-      const res = await api.post('/aegis/evidence/submit/', reportData);
-      const evidenceId = res.data.evidence_id;
-      console.log('🟢 Evidence record created with ID:', evidenceId);
-
-      const formData = new FormData();
-      formData.append('video_file', {
-        uri: uri,
-        name: `silent_evidence_${Date.now()}.mp4`,
-        type: 'video/mp4',
-      } as any);
-      formData.append('media_type', 'video');
-
-      console.log('🟡 Uploading video file...');
-      await api.post(`/aegis/evidence/${evidenceId}/upload/`, formData, {
-        headers: { 
-          'Content-Type': 'multipart/form-data',
-        },
+        quality: '720p',
+        mute: stealthMode,
       });
 
-      console.log('🟢 Video upload completed successfully');
-      Alert.alert(
-        'Evidence Uploaded', 
-        'Video evidence has been uploaded securely.', 
-        [{ text: 'OK' }]
-      );
+      const timeoutPromise = new Promise<null>((resolve) => {
+        setTimeout(() => resolve(null), 300000);
+      });
+
+      const result = await Promise.race([videoRecordPromise, timeoutPromise]);
       
-      setVideoUri(null);
-      
-    } catch (error: any) {
-      console.error('🔴 Error uploading evidence:', error);
-      let errorMessage = 'Failed to upload evidence. Please try again.';
-      
-      if (error.response?.data) {
-        if (typeof error.response.data === 'object') {
-          errorMessage = Object.values(error.response.data).flat().join('\n');
+      if (result) {
+        setCapturedVideo(result.uri);
+        
+        // In stealth mode, auto-submit without alert
+        if (stealthMode) {
+          handleSubmitEvidence(result.uri);
         } else {
-          errorMessage = error.response.data;
+          setShowReviewModal(true);
         }
-      } else if (error.message) {
-        errorMessage = error.message;
       }
+    } catch (error) {
+      console.error('Recording error:', error);
+      if (!stealthMode) {
+        Alert.alert('Error', 'Failed to record video');
+      }
+    } finally {
+      stopRecording();
+    }
+  };
+
+  const stopRecording = () => {
+    if (cameraRef.current && isRecording) {
+      cameraRef.current.stopRecording();
+      setIsRecording(false);
+      if (recordingTimer) {
+        clearInterval(recordingTimer);
+        setRecordingTimer(null);
+      }
+    }
+  };
+
+  const handleReviewAction = (action: 'submit' | 'discard') => {
+    setShowReviewModal(false);
+    
+    if (action === 'submit' && capturedVideo) {
+      handleSubmitEvidence(capturedVideo);
+    } else {
+      setCapturedVideo(null);
+      setRecordingTime(0);
+    }
+  };
+
+  const handleSubmitEvidence = async (videoUri: string) => {
+    if (!videoUri) return;
+
+    setIsUploading(true);
+
+    try {
+      const evidenceData: VideoEvidenceData = {
+        title: stealthMode 
+          ? `Stealth Evidence - ${new Date().toLocaleString()}`
+          : `Silently Captured Evidence - ${new Date().toLocaleString()}`,
+        location_lat: location?.coords.latitude || null,
+        location_lng: location?.coords.longitude || null,
+        location_address: locationAddress,
+        recorded_at: new Date().toISOString(),
+        is_anonymous: isAnonymous || stealthMode,
+        duration_seconds: recordingTime,
+        type: evidenceType,
+      };
+
+      const createResponse = await api.post('/aegis/evidence/submit/', evidenceData);
       
-      Alert.alert('Upload Error', errorMessage);
+      if (createResponse.data.evidence_id) {
+        const evidenceId = createResponse.data.evidence_id;
+        
+        const formData = new FormData();
+        formData.append('video_file', {
+          uri: videoUri,
+          type: 'video/mp4',
+          name: `evidence_${evidenceId}_${Date.now()}.mp4`,
+        } as any);
+        formData.append('media_type', 'video');
+
+        await api.post(
+          `/aegis/evidence/${evidenceId}/upload/`,
+          formData,
+          {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          }
+        );
+
+        if (!stealthMode) {
+          Alert.alert('Success', 'Evidence submitted successfully!');
+        } else {
+          Vibration.vibrate(100);
+        }
+        
+        setCapturedVideo(null);
+        setRecordingTime(0);
+        setEvidenceType('unknown');
+        setIsAnonymous(false);
+      }
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      if (!stealthMode) {
+        Alert.alert(
+          'Upload Failed',
+          error.response?.data?.error || 'Failed to submit evidence. Please try again.'
+        );
+      }
+    } finally {
+      setIsUploading(false);
     }
   };
 
-  // Calculator buttons layout
-  const calculatorButtons = [
-    ['C', '±', '%', '÷'],
-    ['7', '8', '9', '×'],
-    ['4', '5', '6', '−'],
-    ['1', '2', '3', '+'],
-    ['0', '.', '='],
-  ];
-
-  const getButtonStyle = (button: string) => {
-    if (['÷', '×', '−', '+', '='].includes(button)) {
-      return 'bg-amber-500 active:bg-amber-600';
-    } else if (['C', '±', '%'].includes(button)) {
-      return 'bg-gray-500 active:bg-gray-600';
-    } else if (button === '3' && isRecording) {
-      return 'bg-red-500 active:bg-red-600';
-    } else if (button === '0' && isRecording) {
-      return 'bg-green-500 active:bg-green-600';
-    } else if (button === '3' && showProgress) {
-      return 'bg-orange-500 active:bg-orange-600';
-    }
-    return 'bg-gray-800 active:bg-gray-700';
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const getButtonSize = (button: string) => {
-    if (button === '0') return 'flex-1 p-5 m-1';
-    return 'flex-1 p-5 m-1';
-  };
+  if (!permission) {
+    return (
+      <View className="flex-1 bg-background justify-center items-center">
+        <ActivityIndicator size="large" className="text-primary" />
+        <Text className="text-on-surface text-body mt-4 text-center">
+          Requesting camera permission...
+        </Text>
+      </View>
+    );
+  }
+
+  if (!permission.granted) {
+    return (
+      <View className="flex-1 bg-background justify-center items-center p-6">
+        <Text className="text-on-surface text-body text-center mb-6">
+          Camera permission is required for evidence collection.
+        </Text>
+        <TouchableOpacity 
+          className="bg-primary px-6 py-3 rounded-lg"
+          onPress={requestPermission}
+        >
+          <Text className="text-on-primary text-label font-semibold">Grant Permission</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
-    <View className="flex-1 bg-gray-800">
-      {/* Hidden Camera View - Larger but visually hidden */}
-      {stealthMode && (
-        <View 
-          style={{ 
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            opacity: 0.001,
-            overflow: 'hidden',
-            zIndex: -1,
-          }}
-        >
-          <CameraView 
-            style={{ flex: 1 }} 
+    <View className="flex-1 bg-background">
+      <StatusBar 
+        hidden={stealthMode} 
+        backgroundColor="transparent" 
+        translucent 
+      />
+      
+      {/* Camera Area */}
+      <View className="flex-1 relative">
+        {/* Main Camera View - Conditionally rendered based on stealth mode */}
+        {!stealthMode || (stealthMode && !screenOff) ? (
+          <CameraView
             ref={cameraRef}
+            style={{ flex: 1 }}
             facing="back"
-            mute={true}
-            onCameraReady={() => {
-              console.log('🟢 Camera is ready');
-              setCameraReady(true);
-            }}
-          />
-        </View>
-      )}
-
-      {/* Calculator View */}
-      <View className="flex-1 justify-end">
-        {/* Header with stealth toggle */}
-        <View className="absolute top-0 left-0 right-0 p-5 bg-transparent">
-          <View className="flex-row justify-between items-center">
-            <TouchableOpacity 
-              onPress={() => router.back()} 
-              className="p-3 rounded-full bg-gray-700 active:bg-gray-600"
-            >
-              <Text className="text-white text-lg">←</Text>
-            </TouchableOpacity>
-            
-            <View className="flex-row items-center bg-gray-700 rounded-full px-4 py-2">
-              <Text className="text-white mr-2 text-sm font-semibold">Stealth Mode</Text>
-              <Switch
-                value={stealthMode}
-                onValueChange={setStealthMode}
-                trackColor={{ false: '#767577', true: '#34C759' }}
-                thumbColor="#f4f3f4"
-              />
-            </View>
-          </View>
-        </View>
-
-        {/* Calculator Display */}
-        <View className="bg-gray-900 p-6 rounded-t-2xl">
-          <View className="min-h-[80px] justify-end">
-            {previousValue !== '' && (
-              <Text className="text-gray-400 text-right text-lg mb-1">
-                {previousValue} {operation}
-              </Text>
-            )}
-            <Text className="text-white text-right text-6xl font-light" numberOfLines={1}>
-              {displayValue}
-            </Text>
-            {isRecording && (
-              <Text className="text-red-400 text-right text-sm mt-2">
-                ● Recording... {recordingDuration}s
-              </Text>
-            )}
-            {!cameraReady && (
-              <Text className="text-yellow-400 text-right text-sm mt-2">
-                ⚡ Camera initializing...
-              </Text>
-            )}
-          </View>
-        </View>
-
-        {/* Progress Indicator */}
-        {showProgress && (
-          <View className="absolute top-32 left-1/2 -translate-x-1/2 bg-gray-700 px-4 py-2 rounded-full">
-            <Text className="text-white text-sm">
-              Hold: {Math.round(pressProgress * 100)}%
-            </Text>
-          </View>
-        )}
-
-        {/* Calculator Keypad */}
-        <View className="bg-gray-700 rounded-b-2xl p-2">
-          {calculatorButtons.map((row, rowIndex) => (
-            <View key={rowIndex} className="flex-row justify-between mb-2">
-              {row.map((button, index) => (
-                <TouchableOpacity
-                  key={button || `empty-${index}`}
-                  className={`rounded-2xl items-center justify-center ${getButtonSize(button)} ${getButtonStyle(button)} ${
-                    !button ? 'opacity-0' : ''
-                  }`}
-                  onPress={() => button && handleCalculatorButton(button)}
-                  onPressIn={() => button && handleButtonPressIn(button)}
-                  onPressOut={() => button && handleButtonPressOut(button)}
-                  disabled={!button || (button === '0' && !isRecording) || (!cameraReady && button === '3')}
-                >
-                  {button && (
-                    <>
-                      <Text className="text-white text-2xl font-semibold">
-                        {button}
-                      </Text>
-                      
-                      {button === '3' && showProgress && (
-                        <View className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-orange-500 items-center justify-center">
-                          <Text className="text-white text-xs font-bold">
-                            {Math.round(pressProgress * 100)}
-                          </Text>
-                        </View>
-                      )}
-                    </>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-          ))}
-        </View>
-
-        {/* Instructions Panel */}
-        <View className="p-4 bg-gray-800">
-          {stealthMode ? (
-            <View className="bg-gray-700 rounded-xl p-4">
-              <Text className="text-center text-gray-300 text-sm mb-2 font-medium">
-                {isRecording 
-                  ? `● Recording in progress... (${recordingDuration}s)` 
-                  : showProgress
-                    ? 'Keep holding to start recording...'
-                    : !cameraReady
-                      ? 'Camera initializing...'
-                      : 'Stealth Mode Active'
-                }
-              </Text>
-              <Text className="text-center text-gray-400 text-xs">
-                {isRecording 
-                  ? 'Press 0 to stop recording and upload securely'
-                  : !cameraReady
-                    ? 'Please wait for camera to be ready'
-                    : 'Press and hold 3 for 3 seconds to start hidden recording'
-                }
-              </Text>
-              {!isRecording && !showProgress && cameraReady && (
-                <View className="flex-row justify-center items-center mt-2">
-                  <View className="w-2 h-2 bg-red-500 rounded-full mr-2" />
-                  <Text className="text-red-400 text-xs">Camera will activate silently</Text>
-                </View>
-              )}
-            </View>
-          ) : (
-            <View className="bg-blue-500 rounded-xl p-4">
-              <Text className="text-center text-white text-sm font-medium">
-                Normal Mode
-              </Text>
-              <Text className="text-center text-white text-xs mt-1">
-                Use standard camera interface for recording
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Camera Preview for Non-Stealth Mode */}
-        {!stealthMode && (
-          <View className="absolute inset-0 bg-black pt-20">
-            <View className="flex-1 mx-4 my-2 rounded-2xl overflow-hidden">
-              <CameraView 
-                style={{ flex: 1 }} 
-                ref={cameraRef}
-                facing="back"
-                mute={true}
-                onCameraReady={() => setCameraReady(true)}
-              />
-              <View className="absolute bottom-0 left-0 right-0 bg-transparent pb-8">
-                <View className="flex-row justify-center">
-                  <TouchableOpacity
-                    onPress={isRecording ? stopRecording : startRecording}
-                    disabled={!cameraReady}
-                    className={`w-20 h-20 rounded-full border-4 ${
-                      isRecording ? 'border-red-500 bg-red-500/20' : 
-                      !cameraReady ? 'border-gray-500 bg-gray-500/20' : 'border-white bg-white/20'
-                    } items-center justify-center`}
-                  >
-                    <View className={`w-12 h-12 rounded-lg ${
-                      isRecording ? 'bg-red-500' : 
-                      !cameraReady ? 'bg-gray-500' : 'bg-white'
-                    }`} />
-                  </TouchableOpacity>
-                </View>
-                {isRecording && (
-                  <Text className="text-white text-center mt-4">
-                    Recording... {recordingDuration}s
+            mode="video"
+            zoom={0}
+            mute={stealthMode}
+          >
+            {/* Normal Recording Indicator */}
+            {!stealthMode && isRecording && (
+              <View className="absolute top-12 left-0 right-0 items-center z-40">
+                <View className="flex-row items-center bg-black/70 px-4 py-2 rounded-full">
+                  <View className="w-3 h-3 rounded-full bg-error mr-2" />
+                  <Text className="text-white text-label font-semibold">
+                    Recording: {formatTime(recordingTime)}
                   </Text>
-                )}
-                {!cameraReady && (
-                  <Text className="text-yellow-400 text-center mt-4">
-                    Camera initializing...
-                  </Text>
-                )}
+                </View>
               </View>
-            </View>
+            )}
             
+            {/* Stealth Mode Screen Toggle Area */}
+            {stealthMode && !screenOff && (
+              <TouchableOpacity 
+                className="absolute inset-0 z-50"
+                onPress={toggleScreen}
+                activeOpacity={1}
+              />
+            )}
+          </CameraView>
+        ) : (
+          // Black Screen for Stealth Mode
+          <View className="flex-1 bg-black">
+            {/* Triple Tap Detection Area - Full screen for stealth mode */}
             <TouchableOpacity 
-              onPress={() => setStealthMode(true)}
-              className="absolute top-4 right-4 p-3 rounded-full bg-black/50"
-            >
-              <Text className="text-white text-lg">✕</Text>
-            </TouchableOpacity>
+              className="flex-1 z-50"
+              onPress={handleTripleTap}
+              activeOpacity={1}
+            />
+            
+            {/* Stealth Recording Indicator */}
+            {stealthMode && isRecording && (
+              <View className="absolute top-12 left-0 right-0 items-center z-60">
+                <Animated.View 
+                  style={{ opacity: pulseAnim }}
+                  className="flex-row items-center bg-black/80 px-4 py-2 rounded-full"
+                >
+                  <View className="w-2 h-2 rounded-full bg-error mr-2" />
+                  <Text className="text-white text-caption font-semibold">
+                    STEALTH • {formatTime(recordingTime)}
+                  </Text>
+                </Animated.View>
+              </View>
+            )}
+            
+            {/* Screen Toggle Hint for Stealth Mode */}
+            {stealthMode && screenOff && !isRecording && (
+              <View className="absolute bottom-20 left-0 right-0 items-center z-70">
+                <Text className="text-white/60 text-caption text-center">
+                  Tap to briefly view camera • Triple-tap to exit stealth
+                </Text>
+              </View>
+            )}
           </View>
         )}
       </View>
+
+      {/* Review Modal */}
+      <Modal
+        visible={showReviewModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowReviewModal(false)}
+      >
+        <View className="flex-1 bg-background">
+          <View className="flex-row justify-between items-center p-4 border-b border-outline">
+            <Text className="text-on-surface text-title font-semibold">
+              Review Evidence
+            </Text>
+            <TouchableOpacity onPress={() => setShowReviewModal(false)}>
+              <Ionicons name="close" size={24} color="rgb(var(--color-on-surface))" />
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView className="flex-1 p-4">
+            {capturedVideo && (
+              <View className="mb-4">
+                <Text className="text-on-surface text-label font-semibold mb-2">
+                  Video Preview
+                </Text>
+                <Video
+                  ref={videoRef}
+                  source={{ uri: capturedVideo }}
+                  style={{ width: '100%', height: 300, borderRadius: 12 }}
+                  resizeMode={ResizeMode.CONTAIN}
+                  useNativeControls
+                  isLooping
+                />
+              </View>
+            )}
+            
+            <View className="mb-4">
+              <Text className="text-on-surface text-label font-semibold mb-2">
+                Evidence Details
+              </Text>
+              <View className="bg-surface-variant p-3 rounded-lg">
+                <View className="flex-row justify-between mb-2">
+                  <Text className="text-on-surface-variant">Duration:</Text>
+                  <Text className="text-on-surface">{formatTime(recordingTime)}</Text>
+                </View>
+                <View className="flex-row justify-between mb-2">
+                  <Text className="text-on-surface-variant">Type:</Text>
+                  <Text className="text-on-surface">
+                    {EVIDENCE_TYPES.find(t => t.value === evidenceType)?.label}
+                  </Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-on-surface-variant">Anonymous:</Text>
+                  <Text className="text-on-surface">
+                    {isAnonymous ? 'Yes' : 'No'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+            
+            {location && (
+              <View className="mb-4">
+                <Text className="text-on-surface text-label font-semibold mb-2">
+                  Location
+                </Text>
+                <Text className="text-on-surface text-body mb-1">
+                  {locationAddress || 'Address not available'}
+                </Text>
+                <Text className="text-on-surface-variant text-caption">
+                  {location.coords.latitude.toFixed(6)}, {location.coords.longitude.toFixed(6)}
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+          
+          <View className="flex-row p-4 gap-3 border-t border-outline">
+            <TouchableOpacity 
+              className="flex-1 bg-error py-3 rounded-lg"
+              onPress={() => handleReviewAction('discard')}
+            >
+              <Text className="text-on-primary text-label font-semibold text-center">
+                Discard
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              className="flex-1 bg-primary py-3 rounded-lg"
+              onPress={() => handleReviewAction('submit')}
+            >
+              <Text className="text-on-primary text-label font-semibold text-center">
+                Submit Evidence
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Main Controls Container */}
+      <Animated.View 
+        style={{ opacity: fadeAnim }}
+        className={`${isMinimalUI ? 'h-20' : 'flex-1'}`}
+      >
+        {isMinimalUI ? (
+          // Minimal Stealth Controls
+          <View className="flex-row justify-between items-center px-4 py-3 bg-black/80">
+            <View className="flex-row items-center">
+              <FontAwesome5 
+                name="user-secret" 
+                size={16} 
+                color="#EC407A" 
+              />
+              <Text className="text-on-accent text-caption font-semibold ml-2">
+                STEALTH MODE
+              </Text>
+            </View>
+            
+            <View className="flex-row items-center gap-4">
+              {isRecording && (
+                <View className="flex-row items-center">
+                  <View className="w-2 h-2 rounded-full bg-error mr-1" />
+                  <Text className="text-white text-caption">
+                    {formatTime(recordingTime)}
+                  </Text>
+                </View>
+              )}
+              
+              <TouchableOpacity
+                onPress={toggleStealthMode}
+                className="bg-accent/20 px-3 py-1 rounded-full"
+              >
+                <Text className="text-on-accent text-caption font-semibold">
+                  EXIT
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          // Full Controls
+          <ScrollView className="flex-1 p-4">
+            {/* Stealth Mode Toggle */}
+            <View className="mb-4">
+              <TouchableOpacity
+                onPress={toggleStealthMode}
+                className={`flex-row items-center justify-between p-3 rounded-xl border ${
+                  stealthMode 
+                    ? 'bg-accent/20 border-accent' 
+                    : 'bg-surface-variant border-outline'
+                }`}
+              >
+                <View className="flex-row items-center">
+                  <FontAwesome5 
+                    name={stealthMode ? "user-secret" : "eye"} 
+                    size={18} 
+                    color={stealthMode ? "rgb(var(--color-accent))" : "rgb(var(--color-on-surface-variant))"} 
+                  />
+                  <Text className={`text-label font-semibold ml-2 ${
+                    stealthMode ? 'text-accent' : 'text-on-surface'
+                  }`}>
+                    Stealth Mode
+                  </Text>
+                </View>
+                <View className={`w-6 h-6 rounded-full border-2 ${
+                  stealthMode 
+                    ? 'bg-accent border-accent' 
+                    : 'bg-surface border-outline'
+                }`}>
+                  {stealthMode && (
+                    <Ionicons name="checkmark" size={16} color="white" />
+                  )}
+                </View>
+              </TouchableOpacity>
+              
+              {stealthMode && (
+                <Text className="text-on-surface-variant text-caption mt-2 px-1">
+                  • Screen appears black • Auto-submit • No alerts • Triple-tap to exit
+                </Text>
+              )}
+            </View>
+
+            {/* Evidence Type Selection */}
+            <View className="mb-5">
+              <Text className="text-on-surface text-label font-semibold mb-2">
+                Evidence Type
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View className="flex-row gap-2">
+                  {EVIDENCE_TYPES.map((type) => (
+                    <TouchableOpacity
+                      key={type.value}
+                      className={`flex-row items-center px-4 py-2 rounded-full border ${
+                        evidenceType === type.value 
+                          ? 'bg-primary border-primary' 
+                          : 'bg-surface-variant border-outline'
+                      }`}
+                      onPress={() => setEvidenceType(type.value)}
+                    >
+                      <MaterialIcons 
+                        name={type.icon as any} 
+                        size={16} 
+                        color={evidenceType === type.value ? "white" : "rgb(var(--color-on-surface-variant))"} 
+                      />
+                      <Text className={`text-label font-medium ml-2 ${
+                        evidenceType === type.value 
+                          ? 'text-on-primary' 
+                          : 'text-on-surface-variant'
+                      }`}>
+                        {type.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+
+            {/* Location Information */}
+            {location && (
+              <View className="mb-5">
+                <Text className="text-on-surface text-label font-semibold mb-2">
+                  <Ionicons name="location" size={16} color="rgb(var(--color-on-surface))" /> Location
+                </Text>
+                <Text className="text-on-surface text-body mb-1">
+                  {locationAddress || 'Address not available'}
+                </Text>
+                <Text className="text-on-surface-variant text-caption">
+                  {location.coords.latitude.toFixed(6)}, {location.coords.longitude.toFixed(6)}
+                </Text>
+              </View>
+            )}
+
+            {/* Anonymous Toggle */}
+            <View className="mb-5">
+              <TouchableOpacity
+                className="flex-row items-center"
+                onPress={() => setIsAnonymous(!isAnonymous)}
+              >
+                <View className={`w-6 h-6 rounded-full border-2 mr-3 justify-center items-center ${
+                  isAnonymous 
+                    ? 'bg-accent border-accent' 
+                    : 'bg-surface-variant border-outline'
+                }`}>
+                  {isAnonymous && <Ionicons name="checkmark" size={16} color="white" />}
+                </View>
+                <Text className="text-on-surface text-body">
+                  Submit Anonymously
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Recording Controls */}
+            <View className="items-center my-5">
+              {!isRecording ? (
+                <TouchableOpacity
+                  className="flex-row items-center bg-accent px-8 py-4 rounded-full gap-3 shadow-lg"
+                  onPress={startRecording}
+                  disabled={isUploading}
+                >
+                  <Ionicons name="videocam" size={28} color="white" />
+                  <Text className="text-on-accent text-title font-bold">Start Recording</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  className="flex-row items-center bg-error px-8 py-4 rounded-full gap-3 shadow-lg"
+                  onPress={stopRecording}
+                >
+                  <Ionicons name="square" size={28} color="white" />
+                  <Text className="text-on-primary text-title font-bold">Stop Recording</Text>
+                </TouchableOpacity>
+              )}
+
+              {isUploading && (
+                <View className="flex-row items-center mt-3 gap-2">
+                  <ActivityIndicator size="small" className="text-primary" />
+                  <Text className="text-on-surface text-caption">
+                    {stealthMode ? 'Securely uploading...' : 'Uploading evidence...'}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Instructions */}
+            <View className="mt-5 p-3 bg-surface-variant rounded-xl">
+              <Text className="text-on-surface text-label font-semibold mb-2">
+                <Ionicons name="information-circle" size={16} color="rgb(var(--color-on-surface))" /> Instructions:
+              </Text>
+              <Text className="text-on-surface-variant text-caption leading-5">
+                • Record up to 5 minutes of video evidence{'\n'}
+                • Use Stealth Mode for discreet recording{'\n'}
+                • Your location is automatically recorded{'\n'}
+                • Choose appropriate evidence type{'\n'}
+                • Submit anonymously if needed
+              </Text>
+            </View>
+          </ScrollView>
+        )}
+      </Animated.View>
     </View>
   );
 }

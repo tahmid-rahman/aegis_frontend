@@ -26,7 +26,6 @@
         "android.permission.ACCESS_COARSE_LOCATION"
       ],
       "edgeToEdgeEnabled": true
-
     },
     "web": {
       "bundler": "metro",
@@ -66,7 +65,8 @@
           "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to access your location even when the app is in the background.",
           "locationWhenInUsePermission": "Allow $(PRODUCT_NAME) to access your location while you are using the app."
         }
-      ]
+      ],
+      "react-native-vision-camera"
     ],
     "experiments": {
       "typedRoutes": true
