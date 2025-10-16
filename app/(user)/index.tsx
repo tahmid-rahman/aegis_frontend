@@ -100,7 +100,7 @@ export default function Dashboard() {
         <View className="px-6 pt-6 pb-4">
           <View className="flex-row justify-between items-center mb-2">
             <View>
-              <Text className="text-headline text-on-surface">Hello, User</Text>
+              <Text className="text-headline text-on-surface">Hello, </Text>
               <Text className="text-body text-on-surface-variant">Your safety is our priority</Text>
             </View>
             <TouchableOpacity 

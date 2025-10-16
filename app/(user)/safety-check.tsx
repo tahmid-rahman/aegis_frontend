@@ -107,14 +107,13 @@ export default function SafetyCheck() {
               if (!token) return;
 
               api.defaults.headers.Authorization = `Token ${token}`;
-              await api.post('/aegis/safety/check-in/manual/', {
+              const response = await api.post('/aegis/safety/check-in/manual/', {
                 notes: 'Manual safety check-in'
               });
-
               // Refresh statistics
               fetchSafetyData();
               
-              Alert.alert("Thank you!", "Your safety status has been updated.");
+              Alert.alert('Success', response.data.message);
             } catch (error: any) {
               console.error('Error during check-in:', error);
               Alert.alert('Error', 'Failed to record check-in. Please try again.');

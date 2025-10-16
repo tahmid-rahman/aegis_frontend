@@ -3,15 +3,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Animated,
-    Dimensions,
-    Modal,
-    ScrollView,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  Modal,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { useTheme } from '../../../../providers/ThemeProvider';
 import { api } from '../../../../services/api';
@@ -57,7 +57,7 @@ interface LearningResource {
   description: string;
   resource_type: string;
   difficulty: string;
-  duration: string; // e.g., "5 min", "10 minutes"
+  duration: string;
   quiz_questions: QuizQuestion[];
   user_progress?: {
     completed: boolean;
@@ -84,6 +84,7 @@ export default function QuizScreen() {
   const [showResults, setShowResults] = useState(false);
   const [progressAnim] = useState(new Animated.Value(0));
   const [displayScore, setDisplayScore] = useState(0);
+  const [answeredQuestions, setAnsweredQuestions] = useState<Set<number>>(new Set());
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
@@ -91,43 +92,40 @@ export default function QuizScreen() {
   const resourceId = params.id as string;
 
   const parseDurationToSeconds = (duration: string): number => {
-  if (!duration) return 600;
+    if (!duration) return 600;
 
-  const lower = duration.toLowerCase().trim();
+    const lower = duration.toLowerCase().trim();
+    const match = lower.match(/(\d+)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes|s| sec|secs|second|seconds)?/);
 
-  // Match patterns like "10 sec", "5min", "2 h", etc.
-  const match = lower.match(/(\d+)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes|s| sec|secs|second|seconds)?/);
+    if (match && match[1]) {
+      const value = parseInt(match[1]);
+      const unit = match[2] || 's';
 
-  if (match && match[1]) {
-    const value = parseInt(match[1]);
-    const unit = match[2] || 's';
-
-    switch (unit) {
-      case 'h':
-      case 'hr':
-      case 'hrs':
-      case 'hour':
-      case 'hours':
-        return value * 3600;
-      case 'm':
-      case 'min':
-      case 'mins':
-      case 'minute':
-      case 'minutes':
-        return value * 60;
-      case 's':
-      case 'sec':
-      case 'secs':
-      case 'second':
-      case 'seconds':
-      default:
-        return value;
+      switch (unit) {
+        case 'h':
+        case 'hr':
+        case 'hrs':
+        case 'hour':
+        case 'hours':
+          return value * 3600;
+        case 'm':
+        case 'min':
+        case 'mins':
+        case 'minute':
+        case 'minutes':
+          return value * 60;
+        case 's':
+        case 'sec':
+        case 'secs':
+        case 'second':
+        case 'seconds':
+        default:
+          return value;
+      }
     }
-  }
 
-  return 600;
-};
-
+    return 600;
+  };
 
   const fetchQuiz = async () => {
     try {
@@ -163,16 +161,13 @@ export default function QuizScreen() {
     setTimeLeft(totalTime);
     setQuizStarted(true);
     
-    // Start time spent timer
     timerRef.current = setInterval(() => {
       setTimeSpent(prev => prev + 1);
     }, 1000);
 
-    // Start countdown timer
     countdownRef.current = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
-          // Time's up - auto submit
           clearInterval(countdownRef.current as NodeJS.Timeout);
           handleTimeUp();
           return 0;
@@ -207,11 +202,13 @@ export default function QuizScreen() {
       [questionIndex]: optionId
     }));
 
-    // Auto-advance to next question after selection
-    if (questionIndex < (resource?.quiz_questions.length || 0) - 1) {
-      setTimeout(() => {
-        setCurrentQuestion(prev => prev + 1);
-      }, 500);
+    // Mark question as answered without auto-advancing
+    setAnsweredQuestions(prev => new Set(prev).add(questionIndex));
+  };
+
+  const navigateToQuestion = (index: number) => {
+    if (index >= 0 && index < (resource?.quiz_questions.length || 0)) {
+      setCurrentQuestion(index);
     }
   };
 
@@ -238,7 +235,7 @@ export default function QuizScreen() {
   };
 
   const submitQuizAnswers = async () => {
-    cleanupTimers(); // Stop all timers
+    cleanupTimers();
     
     try {
       const token = await AsyncStorage.getItem('auth_token');
@@ -269,7 +266,6 @@ export default function QuizScreen() {
       setQuizCompleted(true);
       setShowResults(true);
 
-      // Animate progress with proper TypeScript handling
       const score = response.data.score;
       progressAnim.setValue(0);
       Animated.timing(progressAnim, {
@@ -278,9 +274,8 @@ export default function QuizScreen() {
         useNativeDriver: false
       }).start();
 
-      // Update display score for the animated text
       let currentDisplay = 0;
-      const increment = score / 50; // 50 steps over 1.5 seconds
+      const increment = score / 50;
       const displayTimer = setInterval(() => {
         currentDisplay += increment;
         if (currentDisplay >= score) {
@@ -300,6 +295,7 @@ export default function QuizScreen() {
     cleanupTimers();
     setCurrentQuestion(0);
     setSelectedAnswers({});
+    setAnsweredQuestions(new Set());
     setQuizCompleted(false);
     setQuizResults(null);
     setTimeSpent(0);
@@ -451,7 +447,7 @@ export default function QuizScreen() {
                 • Timer: {formatTime(totalTime)} total time{"\n"}
                 • Auto-submit when time ends{"\n"}
                 • Read each question carefully{"\n"}
-                • You can't go back to previous questions
+                • You can navigate between questions freely
               </Text>
             </View>
           </View>
@@ -476,6 +472,7 @@ export default function QuizScreen() {
     const question = resource.quiz_questions[currentQuestion];
     const progress = ((currentQuestion + 1) / resource.quiz_questions.length) * 100;
     const isLastQuestion = currentQuestion === resource.quiz_questions.length - 1;
+    const isFirstQuestion = currentQuestion === 0;
 
     return (
       <View className={`flex-1 bg-background${themeSuffix}`}>
@@ -519,6 +516,33 @@ export default function QuizScreen() {
               />
             </View>
           </View>
+
+          {/* Question Navigation Dots */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="py-2">
+            <View className="flex-row space-x-2">
+              {resource.quiz_questions.map((_, index) => (
+                <TouchableOpacity
+                  key={index}
+                  onPress={() => navigateToQuestion(index)}
+                  className={`w-8 h-8 rounded-full items-center justify-center border ${
+                    currentQuestion === index
+                      ? 'bg-primary border-primary'
+                      : answeredQuestions.has(index)
+                      ? 'bg-green-500 border-green-500'
+                      : `bg-surface${themeSuffix} border-outline${themeSuffix}`
+                  }`}
+                >
+                  <Text className={`text-sm font-medium ${
+                    currentQuestion === index || answeredQuestions.has(index)
+                      ? 'text-white'
+                      : `text-on-surface${themeSuffix}`
+                  }`}>
+                    {index + 1}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
         </View>
 
         {/* Question */}
@@ -557,6 +581,9 @@ export default function QuizScreen() {
                       }`}>
                         {option.text}
                       </Text>
+                      {isSelected && (
+                        <Text className="text-white ml-2">✓</Text>
+                      )}
                     </View>
                   </TouchableOpacity>
                 );
@@ -567,32 +594,45 @@ export default function QuizScreen() {
 
         {/* Navigation */}
         <View className={`px-6 py-4 bg-surface${themeSuffix} border-t border-outline${themeSuffix}`}>
-          {isLastQuestion ? (
+          <View className="flex-row justify-between items-center">
+            {/* Previous Button */}
             <TouchableOpacity
-              onPress={submitQuiz}
-              className="bg-green-500 py-4 rounded-xl shadow-lg"
-              disabled={selectedAnswers[currentQuestion] === undefined}
-              style={{ opacity: selectedAnswers[currentQuestion] === undefined ? 0.6 : 1 }}
+              onPress={() => navigateToQuestion(currentQuestion - 1)}
+              className={`px-6 py-3 rounded-lg ${
+                isFirstQuestion ? 'opacity-0' : 'bg-gray-500'
+              }`}
+              disabled={isFirstQuestion}
             >
-              <Text className="text-white text-center font-bold text-lg">
-                Submit Quiz
-              </Text>
+              <Text className="text-white font-semibold">← Previous</Text>
             </TouchableOpacity>
-          ) : (
-            <View className="flex-row justify-between">
-              <Text className={`text-on-surface-variant${themeSuffix} py-4`}>
-                {selectedAnswers[currentQuestion] ? 'Selected ✓' : 'Choose an answer'}
+
+            {/* Question Status */}
+            <View className="items-center">
+              <Text className={`text-on-surface-variant${themeSuffix} text-sm`}>
+                {selectedAnswers[currentQuestion] ? 'Answered ✓' : 'Unanswered'}
               </Text>
+              <Text className={`text-on-surface${themeSuffix} text-xs`}>
+                {answeredQuestions.size}/{resource.quiz_questions.length} completed
+              </Text>
+            </View>
+
+            {/* Next/Submit Button */}
+            {isLastQuestion ? (
               <TouchableOpacity
-                onPress={() => setCurrentQuestion(prev => prev + 1)}
-                className="bg-primary px-8 py-4 rounded-xl"
-                disabled={selectedAnswers[currentQuestion] === undefined}
-                style={{ opacity: selectedAnswers[currentQuestion] === undefined ? 0.6 : 1 }}
+                onPress={submitQuiz}
+                className="bg-green-500 px-6 py-3 rounded-lg"
+              >
+                <Text className="text-white font-semibold">Submit Quiz</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={() => navigateToQuestion(currentQuestion + 1)}
+                className="bg-primary px-6 py-3 rounded-lg"
               >
                 <Text className="text-on-primary font-semibold">Next →</Text>
               </TouchableOpacity>
-            </View>
-          )}
+            )}
+          </View>
         </View>
       </View>
     );
@@ -611,7 +651,23 @@ export default function QuizScreen() {
           </TouchableOpacity>
 
           <View className="items-center mb-8">
-            <View className="w-32 h-32 bg-primary/10 rounded-full items-center justify-center mb-6">
+            <View className="w-32 h-32 bg-primary/10 rounded-full items-center justify-center mb-6 relative">
+              <Animated.View 
+                style={{
+                  position: 'absolute',
+                  width: '100%',
+                  height: '100%',
+                  borderRadius: 64,
+                  borderWidth: 8,
+                  borderColor: '#3b82f6',
+                  borderLeftColor: '#e5e7eb',
+                  borderTopColor: '#e5e7eb',
+                  transform: [{ rotate: progressAnim.interpolate({
+                    inputRange: [0, 100],
+                    outputRange: ['0deg', '360deg']
+                  }) }]
+                }}
+              />
               <Text className={`text-4xl font-bold ${getScoreColor(displayScore)}`}>
                 {displayScore}%
               </Text>
@@ -662,30 +718,24 @@ export default function QuizScreen() {
               </Text>
             </View>
           )}
+
+          {/* Quick Actions */}
+          <View className="flex-row space-x-4 mb-6">
+            <TouchableOpacity
+              onPress={() => setShowResults(true)}
+              className="flex-1 bg-blue-500 py-3 rounded-xl items-center"
+            >
+              <Text className="text-white font-semibold">Review Answers</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={retryQuiz}
+              className="flex-1 bg-primary py-3 rounded-xl items-center"
+            >
+              <Text className="text-on-primary font-semibold">Try Again</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
-
-      <View className={`px-6 py-6 bg-surface${themeSuffix} border-t border-outline${themeSuffix}`}>
-        <View className="flex-row space-x-4">
-          <TouchableOpacity
-            onPress={retryQuiz}
-            className="flex-1 bg-primary py-4 rounded-xl"
-          >
-            <Text className="text-on-primary text-center font-semibold">
-              Try Again
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            onPress={() => router.push('/(user)/learn')}
-            className="flex-1 bg-gray-500 py-4 rounded-xl"
-          >
-            <Text className="text-white text-center font-semibold">
-              More Resources
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
 
       {/* Results Modal */}
       <Modal
@@ -714,23 +764,38 @@ export default function QuizScreen() {
 
               return (
                 <View key={question.id} className="py-4 border-b border-outline-dark">
-                  <Text className={`text-lg font-semibold mb-3 ${isCorrect ? 'text-green-600' : 'text-red-600'}`}>
-                    {qIndex + 1}. {question.question}
-                  </Text>
+                  <View className="flex-row items-start mb-3">
+                    <View className={`w-6 h-6 rounded-full items-center justify-center mr-2 mt-1 ${
+                      isCorrect ? 'bg-green-500' : 'bg-red-500'
+                    }`}>
+                      <Text className="text-white text-xs font-bold">
+                        {isCorrect ? '✓' : '✗'}
+                      </Text>
+                    </View>
+                    <Text className={`text-lg font-semibold flex-1 ${
+                      isCorrect ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {qIndex + 1}. {question.question}
+                    </Text>
+                  </View>
                   
                   <Text className="text-blue-600 font-medium mb-2">
                     Your answer: {selectedOption ? selectedOption.text : 'Not answered'}
                   </Text>
                   
-                  {!isCorrect && (
-                    <Text className="text-green-600 font-medium mb-2">
-                      Correct answer: {question.options.find(opt => opt.is_correct)?.text}
-                    </Text>
-                  )}
-                  
-                  <Text className="text-gray-600">
+                  <Text className="text-gray-600 mb-2">
                     💡 {question.explanation}
                   </Text>
+
+                  <View className={`p-3 rounded-lg ${
+                    isCorrect ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+                  }`}>
+                    <Text className={`font-medium ${
+                      isCorrect ? 'text-green-800' : 'text-red-800'
+                    }`}>
+                      {isCorrect ? '✓ Correct answer!' : '✗ Incorrect answer'}
+                    </Text>
+                  </View>
                 </View>
               );
             })}

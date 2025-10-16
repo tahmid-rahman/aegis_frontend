@@ -1271,7 +1271,7 @@ export default function PanicActive() {
                           longitude: location.longitude,
                           accuracy: location.accuracy,
                         });
-                        Alert.alert('Success', 'Location updated manually');
+                        // Alert.alert('Success', 'Location updated manually');
                       }
                     } catch (error) {
                       Alert.alert('Error', 'Failed to update location');

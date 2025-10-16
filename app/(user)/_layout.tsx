@@ -56,7 +56,7 @@ export default function UserLayout() {
             headerShown: false,
             headerLeft: () => null,
             gestureEnabled: false,
-            contentStyle: { paddingBottom: 0 } 
+            contentStyle: { paddingBottom: 5 } 
           }} 
         />
       </Stack>

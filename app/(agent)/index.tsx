@@ -40,20 +40,9 @@ interface ResponderStats {
   averageTime: string;
 }
 
-// Update your User interface in AuthProvider to include these properties
-interface User {
-  id: string;
-  full_name: string;
-  email: string;
-  role: string;
-  status: string;
-  responder_type?: string;
-  phone?: string;
-}
-
 export default function ResponderDashboard() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [activeResponses, setActiveResponses] = useState<EmergencyResponse[]>([]);
   const [availableEmergencies, setAvailableEmergencies] = useState<EmergencyAlert[]>([]);
   const [responderStatus, setResponderStatus] = useState(user?.status || 'available');
@@ -65,10 +54,32 @@ export default function ResponderDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
+  // Fetch user profile to get latest data
+  const fetchUserProfile = async () => {
+    try {
+      const response = await api.get('/auth/profile/');
+      if (response.data.success) {
+        const userData = response.data.data;
+        setResponderStatus(userData.status || 'offline');
+        updateUser(userData);
+        return userData;
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      // Fallback to current user data
+      if (user) {
+        setResponderStatus(user.status || 'offline');
+      }
+    }
+  };
+
   // Fetch responder assignments and available emergencies
   const fetchData = async () => {
     try {
       setRefreshing(true);
+      
+      // Fetch user profile first to get latest status
+      await fetchUserProfile();
       
       // Fetch responder's active assignments
       const assignmentsResponse = await api.get('/aegis/responder/assignments/');
@@ -194,7 +205,7 @@ export default function ResponderDashboard() {
         }
       }
 
-      // Send status update with location data
+      // Send status update with location data - USING YOUR EXISTING ENDPOINT
       await sendStatusUpdate(newStatus, locationData);
 
     } catch (error) {
@@ -205,6 +216,7 @@ export default function ResponderDashboard() {
     }
   };
 
+  // KEEPING YOUR EXISTING ENDPOINT - NO CHANGES HERE
   const sendStatusUpdate = async (newStatus: string, locationData: any) => {
     try {
       const requestData = {
@@ -212,12 +224,23 @@ export default function ResponderDashboard() {
         ...locationData,
       };
 
+      // USING YOUR EXISTING ENDPOINT - NO CHANGES
       const response = await api.patch(`/auth/responders/${user!.id}/status/`, requestData);
 
       if (response.status === 200) {
         // Update local state immediately for better UX
         setResponderStatus(newStatus);
+        
+        // Also update the user in auth context
+        if (user) {
+          const updatedUser = { ...user, status: newStatus, ...locationData };
+          updateUser(updatedUser);
+        }
+        
         Alert.alert('Status Updated', `You are now ${newStatus.toUpperCase()}`);
+        
+        // Refresh user profile to get latest data from server
+        await fetchUserProfile();
       }
     } catch (error) {
       console.error('Error sending status update:', error);
@@ -245,6 +268,12 @@ export default function ResponderDashboard() {
           text: "Accept Task",
           onPress: async () => {
             try {
+              // Update local status first
+              setResponderStatus('busy');
+              
+              // Update backend status using existing endpoint
+              await handleStatusChange('busy');
+              
               // Assign responder to emergency
               const response = await api.post('/aegis/emergency/assign-responder/', {
                 alert_id: alertId,
@@ -253,12 +282,6 @@ export default function ResponderDashboard() {
               });
 
               if (response.data.success) {
-                // Update local status first
-                setResponderStatus('busy');
-                
-                // Update backend status
-                await handleStatusChange('busy');
-                
                 // Update response status to accepted
                 await api.post('/aegis/responder/update-status/', {
                   response_id: response.data.response_id,
@@ -373,9 +396,10 @@ export default function ResponderDashboard() {
         <View className="px-6 pt-6 pb-4">
           <View className="flex-row justify-between items-center mb-4">
             <View>
-              <Text className="text-headline text-on-surface">Hello, {user.full_name}</Text>
+              <Text className="text-headline text-on-surface">Hello, {user.name}</Text>
               <Text className="text-body text-on-surface-variant">
-                {user.responder_type ? `${user.responder_type} Unit` : 'Emergency Response Unit'}
+                {/* {user.responder_type ? `${user.responder_type} Unit` : 'Emergency Response Unit'} */}
+                {user.badge_number ? `Badge no. ${user.badge_number} `: 'unknown'}
               </Text>
             </View>
             <View className={`px-3 py-1 rounded-full ${

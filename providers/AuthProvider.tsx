@@ -5,14 +5,34 @@ import { api } from '../services/api';
 
 interface User {
   id: string;
-  name: string;
+  full_name: string;
   email: string;
-  gender: string;
+  user_type: 'user' | 'agent' | 'controller' | 'admin';
+  agent_id?: string;
+  responder_type?: 'police' | 'ngo' | 'medical' | 'volunteer';
+  status: 'available' | 'busy' | 'offline';
+  badge_number?: string;
+  specialization: string[];
+  rating: number;
+  total_cases: number;
+  last_active: string;
+  // Location fields
+  location?: string;
+  latitude?: number;
+  longitude?: number;
+  // Personal information
+  gender: 'male' | 'female' | 'other';
   phone: string;
-  id_type: string;
+  id_type: 'nid' | 'birth';
   id_number: string;
-  dob: string;
-  user_type: 'user' | 'agent';
+  dob?: string;
+  blood_group?: string;
+  address?: string;
+  emergency_medical_note?: string;
+  profile_picture?: string;
+  // Timestamps
+  created_at: string;
+  updated_at: string;
 }
 
 interface AuthContextType {
@@ -22,6 +42,7 @@ interface AuthContextType {
   register: (userData: any) => Promise<void>;
   login: (loginData: LoginData) => Promise<void>;
   logout: () => void;
+  updateUser: (userData: User) => void;
 }
 
 interface LoginData {
@@ -124,8 +145,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateUser = (userData: User) => {
+    setUser(userData);
+    AsyncStorage.setItem('user_data', JSON.stringify(userData));
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, register, login, logout }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      token, 
+      isLoading, 
+      register, 
+      login, 
+      logout,
+      updateUser 
+    }}>
       {children}
     </AuthContext.Provider>
   );
