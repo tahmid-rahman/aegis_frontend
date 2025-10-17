@@ -144,7 +144,7 @@ export default function ResourceCard({
               <View className="flex-1 mr-3">
                 <View className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                   <View 
-                    className="bg-primary dark:bg-primary-dark rounded-full h-2 transition-all duration-300"
+                    className="bg-primary dark:bg-primary-dark rounded-full h-2"
                     style={{ width: `${progress}%` }}
                   />
                 </View>

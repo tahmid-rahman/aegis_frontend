@@ -338,11 +338,11 @@ export default function PanicActive() {
       permissions.camera && 'Manual Photo Capture'
     ].filter(Boolean).join(', ');
 
-    Alert.alert(
-      '🚨 Emergency Systems Active',
-      `Emergency alert activated successfully!\n\nActive systems:\n${enabledFeatures || 'Basic alert (enable permissions for full protection)'}\n\nHelp is on the way!`,
-      [{ text: 'OK' }]
-    );
+    // Alert.alert(
+    //   '🚨 Emergency Systems Active',
+    //   `Emergency alert activated successfully!\n\nActive systems:\n${enabledFeatures || 'Basic alert (enable permissions for full protection)'}\n\nHelp is on the way!`,
+    //   [{ text: 'OK' }]
+    // );
   };
 
   const getCurrentLocationWithRetry = async (maxRetries: number = 3): Promise<{
@@ -884,13 +884,21 @@ export default function PanicActive() {
     }
   };
 
-  const handleEmergencyEnded = (status: string) => {
+  const handleEmergencyEnded = async (status: string) => {
     cleanupEmergency();
     
     const message = status === 'cancelled' 
       ? 'Your emergency alert has been cancelled and responders have been notified.' 
       : 'Your emergency has been resolved.';
-    
+
+    if (status === "cancelled") {
+      try {
+        await api.put("/auth/safety-scores/sub-score/");
+      } catch (error) {
+        console.error("Error updating safety score:", error);
+      }
+    }
+
     Alert.alert(
       status === 'cancelled' ? 'Emergency Cancelled' : 'Emergency Resolved',
       message,
@@ -1109,7 +1117,7 @@ export default function PanicActive() {
             </TouchableOpacity>
           </View>
 
-          <View className="flex-row space-x-3">
+          {/* <View className="flex-row space-x-3">
             <TouchableOpacity
               className="bg-gray-700 px-6 py-3 rounded-xl"
               onPress={handleFakeCall}
@@ -1122,7 +1130,7 @@ export default function PanicActive() {
             >
               <Text className="text-white">✉️ Send Error Report</Text>
             </TouchableOpacity>
-          </View>
+          </View> */}
         </View>
 
         {/* Hidden emergency status - still active in background */}
@@ -1183,7 +1191,7 @@ export default function PanicActive() {
               ))
             ) : (
               <View className="flex-row items-center py-3">
-                <View className="w-4 h-4 rounded-full bg-yellow-500 animate-pulse mr-3" />
+                <View className="w-4 h-4 rounded-full bg-yellow-500 mr-3" />
                 <View className="flex-1">
                   <Text className="text-on-surface">Searching for responders...</Text>
                   <Text className="text-on-surface-variant text-sm">

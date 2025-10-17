@@ -1,22 +1,122 @@
 // app/user/index.tsx
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { useAuth } from '../../providers/AuthProvider';
 import { useTheme } from '../../providers/ThemeProvider';
+import { api } from '../../services/api';
+
+interface UserProfile {
+  id: number;
+  full_name: string;
+  email: string;
+  user_type: string;
+  profile_picture?: string;
+  phone: string;
+  location: string;
+}
+
+interface SafetyScore {
+  score: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface Notification {
+  id: number;
+  title: string;
+  message: string;
+  notification_type: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+interface NotificationsResponse {
+  success: boolean;
+  unread_count: number;
+  data: Notification[];
+}
 
 export default function Dashboard() {
   const router = useRouter();
   const { effectiveTheme } = useTheme();
+  const { user: authUser } = useAuth();
+  
   const [locationStatus, setLocationStatus] = useState('Active');
   const [emergencyContacts, setEmergencyContacts] = useState(3);
   const [safetyScore, setSafetyScore] = useState(85);
   const [isStealthMode, setIsStealthMode] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(true);
 
-  // Mock data for recent alerts
-  const recentAlerts = [
-    { id: 1, type: 'panic', time: '2 mins ago', status: 'active' },
-    { id: 2, type: 'test', time: '1 hour ago', status: 'completed' },
-  ];
+  const baseUrl = process.env.EXPO_PUBLIC_URL;
+
+  // Fetch user data
+  useEffect(() => {
+    fetchUserData();
+  }, []);
+
+  const fetchUserData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch user profile
+      const profileResponse = await api.get('/auth/profile/');
+      setUserProfile(profileResponse.data);
+
+      // Fetch safety score
+      try {
+        const scoreResponse = await api.get('/auth/safety-scores/my-score/');
+        setSafetyScore(scoreResponse.data.score);
+      } catch (error) {
+        console.log('Safety score not found, using default');
+      }
+
+      // Fetch notifications
+      const notificationsResponse = await api.get<NotificationsResponse>('/aegis/notifications/');
+      setNotifications(notificationsResponse.data.data);
+      setUnreadCount(notificationsResponse.data.unread_count);
+
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      Alert.alert('Error', 'Failed to load user data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const markNotificationAsRead = async (notificationId: number) => {
+    try {
+      await api.post(`/aegis/notifications/${notificationId}/read/`);
+      // Update local state
+      setNotifications(prev => 
+        prev.map(notif => 
+          notif.id === notificationId ? { ...notif, is_read: true } : notif
+        )
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const toggleStealthMode = () => {
+    setIsStealthMode(!isStealthMode);
+    Alert.alert('Stealth Mode', isStealthMode ? 'Stealth mode deactivated' : 'Stealth mode activated. App will appear as a calculator to others.');
+  };
+
+  const getProfilePictureUrl = () => {
+    if (!userProfile?.profile_picture) return null;
+    
+    if (userProfile.profile_picture.startsWith('http')) {
+      return userProfile.profile_picture;
+    }
+    
+    // Assuming the profile_picture is a relative path
+    return `${baseUrl}${userProfile.profile_picture}`;
+  };
 
   const quickActions = [
     { 
@@ -32,10 +132,7 @@ export default function Dashboard() {
       description: 'Discreet safety features',
       icon: isStealthMode ? '🕶️' : '👁️', 
       color: isStealthMode ? 'bg-green-500' : 'bg-surface-variant', 
-      action: () => {
-        setIsStealthMode(!isStealthMode);
-        Alert.alert('Stealth Mode', isStealthMode ? 'Stealth mode deactivated' : 'Stealth mode activated');
-      }
+      action: toggleStealthMode
     },
     { 
       title: 'Silent Capture', 
@@ -88,10 +185,24 @@ export default function Dashboard() {
     },
   ];
 
-  const toggleStealthMode = () => {
-    setIsStealthMode(!isStealthMode);
-    Alert.alert('Stealth Mode', isStealthMode ? 'Stealth mode deactivated' : 'Stealth mode activated. App will appear as a calculator to others.');
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes} mins ago`;
+    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)} hours ago`;
+    return `${Math.floor(diffInMinutes / 1440)} days ago`;
   };
+
+  if (loading) {
+    return (
+      <View className="flex-1 bg-background justify-center items-center">
+        <Text className="text-on-surface">Loading...</Text>
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-background">
@@ -100,14 +211,25 @@ export default function Dashboard() {
         <View className="px-6 pt-6 pb-4">
           <View className="flex-row justify-between items-center mb-2">
             <View>
-              <Text className="text-headline text-on-surface">Hello, </Text>
-              <Text className="text-body text-on-surface-variant">Your safety is our priority</Text>
+              <Text className="text-headline text-on-surface">
+                Hello, {userProfile?.full_name || 'User'}
+              </Text>
+              <Text className="text-body text-on-surface-variant">
+                Your safety is our priority
+              </Text>
             </View>
             <TouchableOpacity 
-              className="bg-surface-variant p-3 rounded-full"
+              className="bg-surface-variant p-1 rounded-full"
               onPress={() => router.push('/(user)/profile')}
             >
-              <Text className="text-xl">👤</Text>
+              {getProfilePictureUrl() ? (
+                <Image 
+                  source={{ uri: getProfilePictureUrl()! }}
+                  className="w-10 h-10 rounded-full"
+                />
+              ) : (
+                <Text className="text-xl">👤</Text>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -145,7 +267,7 @@ export default function Dashboard() {
             </TouchableOpacity>
           </View>
           
-          <View className="flex-row flex-wrap justify-between">
+          <View className="flex-row flex-wrap justify-between text-on-surface">
             {quickActions.map((action, index) => (
               <TouchableOpacity
                 key={index}
@@ -160,7 +282,7 @@ export default function Dashboard() {
                   </View>
                   <View className="flex-1">
                     <Text 
-                      className="text-on-surface font-medium" 
+                      className="text-on-surface font-medium text-on-surface-varient" 
                       style={{ color: action.emergency ? 'rgb(var(--color-error))' : 'rgb(var(--color-on-surface))' }}
                     >
                       {action.title}
@@ -197,35 +319,49 @@ export default function Dashboard() {
           </View>
         </View>
 
-        {/* Recent Activity */}
+        {/* Recent Activity / Notifications */}
         <View className="px-6 mt-6 mb-10">
           <View className="flex-row justify-between items-center mb-3">
-            <Text className="text-title text-on-surface">Recent Activity</Text>
-            <TouchableOpacity>
+            <Text className="text-title text-on-surface">
+              Recent Activity {unreadCount > 0 && `(${unreadCount} unread)`}
+            </Text>
+            <TouchableOpacity 
+            onPress={() => router.push('/(user)/notifications')}
+            >
               <Text className="text-primary">See All</Text>
             </TouchableOpacity>
           </View>
           
-          {recentAlerts.length > 0 ? (
+          {notifications.length > 0 ? (
             <View className="bg-surface-variant rounded-xl overflow-hidden">
-              {recentAlerts.map((alert, index) => (
-                <View 
-                  key={alert.id} 
-                  className={`flex-row items-center py-4 px-5 ${index < recentAlerts.length - 1 ? 'border-b border-outline' : ''}`}
+              {notifications.slice(0, 5).map((notification, index) => (
+                <TouchableOpacity
+                  key={notification.id}
+                  className={`flex-row items-center py-4 px-5 ${index < Math.min(notifications.length - 1, 4) ? 'border-b border-outline' : ''} ${!notification.is_read ? 'bg-primary/5' : ''}`}
+                  onPress={() => markNotificationAsRead(notification.id)}
+                  activeOpacity={0.7}
                 >
-                  <View className={`p-2 rounded-full mr-4 ${alert.status === 'active' ? 'bg-error/20' : 'bg-green-500/20'}`}>
-                    <Text className={alert.status === 'active' ? 'text-error' : 'text-green-500'}>
-                      {alert.type === 'panic' ? '🚨' : '✅'}
+                  <View className={`p-2 rounded-full mr-4 ${notification.is_read ? 'bg-surface' : 'bg-primary/20'}`}>
+                    <Text className={notification.is_read ? 'text-on-surface-variant' : 'text-primary'}>
+                      {notification.notification_type === 'alert_activated' ? '🚨' : 
+                       notification.notification_type === 'alert_resolved' ? '✅' : '📢'}
                     </Text>
                   </View>
                   <View className="flex-1">
-                    <Text className="text-on-surface">
-                      {alert.type === 'panic' ? 'Emergency alert activated' : 'Safety test completed'}
+                    <Text className={`text-on-surface ${!notification.is_read ? 'font-medium' : ''}`}>
+                      {notification.title || 'Notification'}
                     </Text>
-                    <Text className="text-label text-on-surface-variant">{alert.time}</Text>
+                    <Text className="text-label text-on-surface-variant">
+                      {notification.message}
+                    </Text>
+                    <Text className="text-label text-on-surface-variant mt-1">
+                      {formatTime(notification.created_at)}
+                    </Text>
                   </View>
-                  <Text className="text-on-surface-variant">→</Text>
-                </View>
+                  {!notification.is_read && (
+                    <View className="w-2 h-2 bg-primary rounded-full" />
+                  )}
+                </TouchableOpacity>
               ))}
             </View>
           ) : (

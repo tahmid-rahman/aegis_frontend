@@ -136,14 +136,14 @@ export default function EmergencyDetails() {
   // Enhanced status update function
   const handleStatusUpdate = async (newStatus: string, notes?: string) => {
     try {
-      // If no current response exists, we need to create one first
+      // If no current response exists, we need to create one first for acceptance
       if (!currentResponse && newStatus === 'accepted') {
         await handleCreateResponseAssignment();
         return;
       }
 
       if (!currentResponse?.id) {
-        Alert.alert('Error', 'No response assignment found. Please accept the emergency first.');
+        Alert.alert('Error', 'No response assignment found.');
         return;
       }
 
@@ -194,9 +194,9 @@ export default function EmergencyDetails() {
         }
         
         // Only show alert for non-completed statuses
-        // if (newStatus !== 'completed' && message) {
-        //   Alert.alert('Status Updated', message);
-        // }
+        if (newStatus !== 'completed' && message) {
+          Alert.alert('Status Updated', message);
+        }
         
         // For completed status, show report option
         if (newStatus === 'completed') {
@@ -217,6 +217,97 @@ export default function EmergencyDetails() {
     }
   };
 
+  // Handle reject emergency - Direct API call to update-status
+  const handleRejectEmergency = async () => {
+    try {
+      Alert.alert(
+        "Reject Emergency",
+        "Are you sure you want to reject this emergency assignment? This action cannot be undone.",
+        [
+          {
+            text: "Cancel",
+            style: "cancel"
+          },
+          {
+            text: "Reject Emergency",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                // If there's no current response, create one first then reject it
+                let responseId = currentResponse?.id;
+                
+                if (!responseId) {
+                  // First, create the response assignment
+                  const createResponse = await api.post('/aegis/emergency/assign-responder/', {
+                    alert_id: alertId,
+                    responder_id: user?.id,
+                    notes: "Responder assigned for rejection"
+                  });
+
+                  if (createResponse.data.success) {
+                    responseId = createResponse.data.data.id;
+                    // Wait a bit for the assignment to be created
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    // Refresh to get the new response
+                    await fetchEmergencyDetails();
+                  } else {
+                    throw new Error(createResponse.data.error || 'Failed to create response assignment');
+                  }
+                }
+
+                // Now update status to rejected
+                const updateData = {
+                  response_id: responseId,
+                  status: 'rejected',
+                  notes: 'Responder rejected the emergency assignment',
+                  eta_minutes: 0,
+                };
+
+                const apiResponse = await api.post('/aegis/responder/update-status/', updateData);
+                
+                if (apiResponse.data.success) {
+                  // Update responder status to available
+                  if (user?.id) {
+                    try {
+                      await api.patch(`/auth/responders/${user.id}/status/`, {
+                        status: 'available'
+                      });
+                    } catch (error) {
+                      console.error('Error updating responder status:', error);
+                    }
+                  }
+
+                  Alert.alert(
+                    "Emergency Rejected", 
+                    "You have successfully rejected this emergency assignment.",
+                    [
+                      {
+                        text: "OK",
+                        onPress: () => {
+                          // Navigate back after rejection
+                          router.back();
+                        }
+                      }
+                    ]
+                  );
+                } else {
+                  Alert.alert('Error', apiResponse.data.error || 'Failed to reject emergency');
+                }
+              } catch (error: any) {
+                console.error('Error rejecting emergency:', error);
+                console.error('Error response:', error.response?.data);
+                Alert.alert('Error', error.response?.data?.error || 'Failed to reject emergency');
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Error in reject handler:', error);
+      Alert.alert('Error', 'Failed to process rejection');
+    }
+  };
+
   // Show report option when emergency is completed
   const showReportOption = () => {
     Alert.alert(
@@ -231,15 +322,14 @@ export default function EmergencyDetails() {
           text: 'Maybe Later',
           style: 'cancel',
           onPress: () => {
-            // Optional: Add any cleanup or navigation here
-            router.back(); // Or navigate to home/dashboard
+            router.back();
           }
         }
       ]
     );
   };
 
-  // Create response assignment first
+  // Create response assignment first - SIMPLIFIED VERSION
   const handleCreateResponseAssignment = async () => {
     try {
       if (!user?.id) {
@@ -247,36 +337,82 @@ export default function EmergencyDetails() {
         return;
       }
 
-      const response = await api.post('/aegis/emergency/assign-responder/', {
-        alert_id: alertId,
-        responder_id: user.id,
-        notes: "Responder accepted the emergency"
-      });
+      // Only create assignment if one doesn't exist
+      if (!currentResponse) {
+        const response = await api.post('/aegis/emergency/assign-responder/', {
+          alert_id: alertId,
+          responder_id: user.id,
+          notes: "Responder accepted the emergency"
+        });
 
-      if (response.data.success) {
-        // Update responder status to busy
-        try {
-          await api.patch(`/account/responders/${user.id}/status/`, {
-            status: 'busy'
-          });
-        } catch (error) {
-          console.error('Error updating responder status:', error);
+        if (response.data.success) {
+          // Update responder status to busy
+          try {
+            await api.patch(`/auth/responders/${user.id}/status/`, {
+              status: 'busy'
+            });
+          } catch (error) {
+            console.error('Error updating responder status:', error);
+          }
+
+          // Refresh to get the new response ID
+          await fetchEmergencyDetails();
+          
+          // Now the currentResponse should be set, so we can proceed with acceptance
+          // Wait a moment for state to update
+          setTimeout(() => {
+            if (currentResponse) {
+              handleDirectStatusUpdate('accepted', 'Responder accepted the emergency assignment');
+            }
+          }, 1000);
+        } else {
+          Alert.alert('Error', response.data.error || 'Failed to accept emergency');
         }
-
-        // Refresh to get the new response ID
-        await fetchEmergencyDetails();
-        
-        // Now update status to accepted
-        setTimeout(() => {
-          handleStatusUpdate('accepted', 'Responder accepted the emergency assignment');
-        }, 1000);
       } else {
-        Alert.alert('Error', response.data.error || 'Failed to accept emergency');
+        // If response already exists, just update the status
+        handleDirectStatusUpdate('accepted', 'Responder accepted the emergency assignment');
       }
     } catch (error: any) {
       console.error('Error creating response assignment:', error);
       console.error('Error response:', error.response?.data);
       Alert.alert('Error', error.response?.data?.error || 'Failed to accept emergency');
+    }
+  };
+
+  // Direct status update without creating assignment
+  const handleDirectStatusUpdate = async (newStatus: string, notes?: string) => {
+    try {
+      if (!currentResponse?.id) {
+        Alert.alert('Error', 'No response assignment found.');
+        return;
+      }
+
+      const updateData = {
+        response_id: currentResponse.id,
+        status: newStatus,
+        notes: notes || '',
+        eta_minutes: calculateETA(newStatus),
+      };
+
+      const apiResponse = await api.post('/aegis/responder/update-status/', updateData);
+      
+      if (apiResponse.data.success) {
+        setCurrentResponse(prev => prev ? { ...prev, status: newStatus } : null);
+        
+        if (newStatus === 'accepted') {
+          Alert.alert('Success', 'You have accepted this emergency assignment.');
+        }
+        
+        // Refresh data
+        setTimeout(() => {
+          fetchEmergencyDetails();
+        }, 500);
+      } else {
+        Alert.alert('Error', apiResponse.data.error || 'Failed to update status');
+      }
+    } catch (error: any) {
+      console.error('Error updating status:', error);
+      Alert.alert('Error', error.response?.data?.error || 'Failed to update status');
     }
   };
 
@@ -399,6 +535,7 @@ export default function EmergencyDetails() {
       case 'en_route': return 'bg-orange-500';
       case 'on_scene': return 'bg-purple-500';
       case 'completed': return 'bg-green-500';
+      case 'rejected': return 'bg-red-500';
       default: return 'bg-gray-500';
     }
   };
@@ -459,6 +596,8 @@ export default function EmergencyDetails() {
 
   const responderStatus = currentResponse?.status || 'notified';
   const hasMedia = emergency.media_captures && emergency.media_captures.length > 0;
+  const canReject = !currentResponse || ['notified', 'accepted'].includes(responderStatus);
+  const canAccept = !currentResponse || responderStatus === 'notified';
 
   return (
     <View className="flex-1 bg-background">
@@ -506,7 +645,7 @@ export default function EmergencyDetails() {
             {/* Show ALL status progression buttons */}
             <View className="space-y-2">
               {/* Accept Emergency - Show when no response exists or status is notified */}
-              {(!currentResponse || responderStatus === 'notified') && (
+              {canAccept && (
                 <TouchableOpacity
                   className="bg-green-500 py-3 rounded-lg"
                   onPress={() => handleStatusUpdate('accepted', 'Responder accepted the emergency')}
@@ -546,6 +685,16 @@ export default function EmergencyDetails() {
               )}
             </View>
 
+            {/* Reject Button - Always visible when allowed */}
+            {canReject && (
+              <TouchableOpacity
+                className="bg-red-500 py-3 rounded-lg mt-3"
+                onPress={handleRejectEmergency}
+              >
+                <Text className="text-white text-center font-semibold">❌ Reject Emergency Assignment</Text>
+              </TouchableOpacity>
+            )}
+
             {/* Current Status Display */}
             {currentResponse && (
               <View className="mt-3 p-2 bg-primary/10 rounded-lg">
@@ -562,6 +711,7 @@ export default function EmergencyDetails() {
           </View>
         </View>
 
+        {/* Rest of your existing UI components remain the same */}
         {/* Location Information */}
         <View className="px-6 mb-6">
           <Text className="text-title text-on-surface mb-3">Location Details</Text>

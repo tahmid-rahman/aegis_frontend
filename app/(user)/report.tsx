@@ -263,7 +263,7 @@ export default function ReportIncident() {
               style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: 'white' }}
             />
             <TouchableOpacity onPress={() => setShowCamera(false)} style={{ marginTop: 20 }}>
-              <Text style={{ color: 'white' }}>Cancel</Text>
+              <Text className="text-on-primary">Cancel</Text>
             </TouchableOpacity>
           </View>
         </CameraView>
@@ -273,7 +273,7 @@ export default function ReportIncident() {
       <View className="px-6 pt-6 pb-4">
         <View className="flex-row items-center mb-4">
           <TouchableOpacity onPress={() => router.back()} className="p-2 rounded-full bg-surface-variant mr-3">
-            <Text className="text-lg">←</Text>
+            <Text className="text-lg text-on-surface">←</Text>
           </TouchableOpacity>
           <Text className="text-headline text-on-surface">Report Incident</Text>
         </View>
@@ -282,7 +282,7 @@ export default function ReportIncident() {
       <ScrollView className="flex-1 px-6 mt-2" showsVerticalScrollIndicator={false}>
         {/* Incident Type */}
         <View className="mb-6">
-          <Text className="text-title mb-3">Incident Type *</Text>
+          <Text className="text-title text-on-surface mb-3">Incident Type *</Text>
           <View className="flex-row flex-wrap justify-between">
             {incidentTypes.map((type) => (
               <TouchableOpacity
@@ -292,7 +292,7 @@ export default function ReportIncident() {
                 }`}
                 onPress={() => setIncidentType(type.id)}
               >
-                <Text>{type.icon} {type.label}</Text>
+                <Text className="text-on-surface">{type.icon} {type.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -300,12 +300,12 @@ export default function ReportIncident() {
 
         {/* Date */}
         <View className="mb-6">
-          <Text className="mb-3">When did it happen? *</Text>
+          <Text className="text-on-surface mb-3">When did it happen? *</Text>
           <TouchableOpacity
             className="p-4 rounded-xl border border-outline bg-surface-variant"
             onPress={() => setShowDatePicker(true)}
           >
-            <Text>{formatDate(date)} 📅</Text>
+            <Text className="text-on-surface-variant">{formatDate(date)} 📅</Text>
           </TouchableOpacity>
           {showDatePicker && (
             <DateTimePicker
@@ -320,52 +320,57 @@ export default function ReportIncident() {
 
         {/* Location */}
         <View className="mb-6">
-          <Text className="mb-3">Location</Text>
+          <Text className="text-on-surface mb-3">Location</Text>
           <TextInput
-            className="p-4 rounded-xl border border-outline bg-surface-variant mb-3"
+            className="p-4 rounded-xl border border-outline bg-surface-variant mb-3 text-on-surface placeholder:text-placeholder"
             value={location}
             onChangeText={setLocation}
             placeholder="Where did it happen?"
+            placeholderTextColor="rgb(var(--color-placeholder))"
           />
           <TouchableOpacity
             className="p-3 rounded-xl border border-primary bg-primary/5"
             onPress={getCurrentLocation}
           >
-            <Text>📍 Use Current Location</Text>
+            <Text className="text-on-surface">📍 Use Current Location</Text>
           </TouchableOpacity>
         </View>
 
         {/* Description */}
         <View className="mb-6">
-          <Text className="mb-3">Description *</Text>
+          <Text className="text-on-surface mb-3">Description *</Text>
           <TextInput
-            className="p-4 rounded-xl border border-outline bg-surface-variant h-32"
+            className="p-4 rounded-xl border border-outline bg-surface-variant h-32 text-on-surface placeholder:text-placeholder"
             multiline
             textAlignVertical="top"
             value={description}
             onChangeText={setDescription}
+            placeholder="Describe what happened..."
+            placeholderTextColor="rgb(var(--color-placeholder))"
           />
         </View>
 
         {/* Media */}
         <View className="mb-6">
-          <Text className="mb-3">Add Evidence (optional)</Text>
+          <Text className="text-on-surface mb-3">Add Evidence (optional)</Text>
           <TouchableOpacity
             className="p-4 rounded-xl border border-outline bg-surface-variant"
             onPress={captureMedia}
           >
-            <Text>{mediaCaptured ? '📎 Media attached' : '📸 Take photo / 🎙️ Record audio'}</Text>
+            <Text className="text-on-surface-variant">
+              {mediaCaptured ? '📎 Media attached' : '📸 Take photo / 🎙️ Record audio'}
+            </Text>
           </TouchableOpacity>
           {recording && (
             <TouchableOpacity className="mt-3 p-3 bg-red-500 rounded-xl" onPress={stopRecording}>
-              <Text className="text-white">Stop Recording</Text>
+              <Text className="text-on-primary">Stop Recording</Text>
             </TouchableOpacity>
           )}
         </View>
 
         {/* Anonymous */}
         <View className="mb-8 flex-row justify-between items-center p-4 rounded-xl bg-surface-variant">
-          <Text>Submit Anonymously</Text>
+          <Text className="text-on-surface">Submit Anonymously</Text>
           <Switch value={isAnonymous} onValueChange={setIsAnonymous} />
         </View>
 
@@ -376,7 +381,11 @@ export default function ReportIncident() {
           disabled={isSubmitting}
         >
           <View className="flex-row justify-center items-center">
-            {isSubmitting ? <ActivityIndicator color="white" /> : <Text>🛡️ Submit Report</Text>}
+            {isSubmitting ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text className="text-on-primary">🛡️ Submit Report</Text>
+            )}
           </View>
         </TouchableOpacity>
       </ScrollView>

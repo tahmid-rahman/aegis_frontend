@@ -27,6 +27,10 @@
   --color-error: 179, 38, 30; /* #B3261E */
   --color-error-container: 249, 222, 220; /* #F9DEDC */
   
+  /* placehorler colors */
+  --color-placeholder: 158, 153, 163; /* #9E99A3 */
+  --color-placeholder-variant: 158, 153, 163; /* #9E99A3 */
+
   /* Text Colors */
   --color-on-primary: 255, 255, 255; /* #FFFFFF */
   --color-on-secondary: 255, 255, 255; /* #FFFFFF */
@@ -233,4 +237,11 @@
 }
 .border-outline-dark {
   border-color: rgb(var(--color-outline));
+}
+
+.text-placeholder {
+  color: rgb(var(--color-placeholder));
+}
+.text-placeholder-variant {
+  color: rgb(var(--color-placeholder-variant));
 }

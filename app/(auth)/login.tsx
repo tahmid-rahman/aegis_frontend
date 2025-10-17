@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons"; // Make sure to install @expo/vector-icons
 import { Link } from "expo-router";
 import { useState } from "react";
 import {
@@ -7,7 +8,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { useAuth } from "../../providers/AuthProvider";
 import { useTheme } from "../../providers/ThemeProvider";
@@ -18,6 +19,7 @@ export default function Login() {
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [userType, setUserType] = useState<"user" | "agent">("user");
   const [agentId, setAgentId] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -66,6 +68,10 @@ export default function Login() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
   };
 
   return (
@@ -181,22 +187,35 @@ export default function Login() {
 
         <View>
           <Text className="text-label text-on-surface-variant mb-2">Password</Text>
-          <TextInput
-            className={`bg-surface-variant rounded-xl p-4 text-on-surface border ${
-              errors.password ? "border-error" : "border-outline"
-            }`}
-            placeholder="••••••••"
-            placeholderTextColor="rgb(var(--color-on-surface-variant))"
-            value={password}
-            onChangeText={(text) => {
-              setPassword(text);
-              if (errors.password) {
-                setErrors(prev => ({ ...prev, password: undefined }));
-              }
-            }}
-            secureTextEntry
-            editable={!isLoading}
-          />
+          <View className="relative">
+            <TextInput
+              className={`bg-surface-variant rounded-xl p-4 text-on-surface border ${
+                errors.password ? "border-error" : "border-outline"
+              } pr-12`}
+              placeholder="••••••••"
+              placeholderTextColor="rgb(var(--color-placeholder-variant))"
+              value={password}
+              onChangeText={(text) => {
+                setPassword(text);
+                if (errors.password) {
+                  setErrors(prev => ({ ...prev, password: undefined }));
+                }
+              }}
+              secureTextEntry={!showPassword}
+              editable={!isLoading}
+            />
+            <TouchableOpacity
+              className="absolute right-4 top-4"
+              onPress={togglePasswordVisibility}
+              disabled={isLoading}
+            >
+              <Ionicons 
+                name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                size={24} 
+                color="rgb(var(--color-on-surface-variant))"
+              />
+            </TouchableOpacity>
+          </View>
           {errors.password && (
             <Text className="text-error text-sm mt-1">{errors.password}</Text>
           )}

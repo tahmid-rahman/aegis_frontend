@@ -723,9 +723,9 @@ export default function Profile() {
             <View className="p-4 border-b border-outline">
               <Text className="text-label text-on-surface-variant mb-1">Email Address</Text>
               <Text className="text-on-surface text-lg font-medium">{profile.email}</Text>
-              <Text className="text-label text-on-surface-variant text-sm mt-1">
+              {/* <Text className="text-label text-on-surface-variant text-sm mt-1">
                 Email cannot be changed
-              </Text>
+              </Text> */}
             </View>
 
             {/* Date of Birth */}

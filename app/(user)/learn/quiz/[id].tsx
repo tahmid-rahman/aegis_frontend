@@ -1,5 +1,4 @@
 // app/user/learn/quiz/[id].tsx
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -51,6 +50,16 @@ interface QuizResult {
   message: string;
 }
 
+interface QuizAttempt {
+  id: number;
+  resource: number;
+  resource_title: string;
+  score: number;
+  total_questions: number;
+  correct_answers: number;
+  completed_at: string;
+}
+
 interface LearningResource {
   id: number;
   title: string;
@@ -85,6 +94,10 @@ export default function QuizScreen() {
   const [progressAnim] = useState(new Animated.Value(0));
   const [displayScore, setDisplayScore] = useState(0);
   const [answeredQuestions, setAnsweredQuestions] = useState<Set<number>>(new Set());
+  const [quizAttempts, setQuizAttempts] = useState<QuizAttempt[]>([]);
+  const [latestAttempt, setLatestAttempt] = useState<QuizAttempt | null>(null);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
@@ -127,14 +140,29 @@ export default function QuizScreen() {
     return 600;
   };
 
+  const fetchQuizHistory = async () => {
+    try {
+      // Fetch latest attempt
+      const latestResponse = await api.get(`/aegis/learn/quiz-history/${resourceId}/`);
+      if (latestResponse.data && !latestResponse.data.message) {
+        setLatestAttempt(latestResponse.data);
+      }
+
+      // Fetch all attempts
+      const allAttemptsResponse = await api.get(`/aegis/learn/quiz-attempt/${resourceId}/`);
+      if (allAttemptsResponse.data && !allAttemptsResponse.data.message) {
+        setQuizAttempts(allAttemptsResponse.data);
+      }
+    } catch (error: any) {
+      console.error('Error fetching quiz history:', error);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
   const fetchQuiz = async () => {
     try {
       setLoading(true);
-      const token = await AsyncStorage.getItem('auth_token');
-      if (!token) {
-        router.push('/login');
-        return;
-      }
 
       const response = await api.get(`/aegis/learn/resources/${resourceId}/`);
       
@@ -146,6 +174,9 @@ export default function QuizScreen() {
 
       setResource(response.data);
       
+      // Fetch quiz history after resource is loaded
+      await fetchQuizHistory();
+      
     } catch (error: any) {
       console.error('Error fetching quiz:', error);
       Alert.alert('Error', 'Failed to load quiz. Please try again.');
@@ -156,6 +187,16 @@ export default function QuizScreen() {
 
   const startQuiz = () => {
     if (!resource) return;
+    
+    // Check if user has perfect score in latest attempt
+    if (latestAttempt && latestAttempt.score === 100) {
+      Alert.alert(
+        "Quiz Completed",
+        "You've already achieved a perfect score on this quiz! No further attempts are allowed.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
     
     const totalTime = parseDurationToSeconds(resource.duration);
     setTimeLeft(totalTime);
@@ -202,7 +243,6 @@ export default function QuizScreen() {
       [questionIndex]: optionId
     }));
 
-    // Mark question as answered without auto-advancing
     setAnsweredQuestions(prev => new Set(prev).add(questionIndex));
   };
 
@@ -238,8 +278,7 @@ export default function QuizScreen() {
     cleanupTimers();
     
     try {
-      const token = await AsyncStorage.getItem('auth_token');
-      if (!token || !resource) return;
+      if (!resource) return;
 
       const answers: QuizAnswer[] = [];
       Object.entries(selectedAnswers).forEach(([questionIndex, optionId]) => {
@@ -266,7 +305,17 @@ export default function QuizScreen() {
       setQuizCompleted(true);
       setShowResults(true);
 
+      // Refresh history after submission
+      await fetchQuizHistory();
+
       const score = response.data.score;
+      if(score === 100){
+        try {
+          await api.put("/auth/safety-scores/add-score/");
+        } catch (error) {
+          console.error("Error updating safety score:", error);
+      }
+      }
       progressAnim.setValue(0);
       Animated.timing(progressAnim, {
         toValue: score,
@@ -292,6 +341,16 @@ export default function QuizScreen() {
   };
 
   const retryQuiz = () => {
+    // Check if user has perfect score in latest attempt
+    if (latestAttempt && latestAttempt.score === 100) {
+      Alert.alert(
+        "Quiz Completed",
+        "You've already achieved a perfect score on this quiz! No further attempts are allowed.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
     cleanupTimers();
     setCurrentQuestion(0);
     setSelectedAnswers({});
@@ -335,6 +394,19 @@ export default function QuizScreen() {
     return 'text-green-500';
   };
 
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const hasPerfectScore = latestAttempt && latestAttempt.score === 100;
+
   useEffect(() => {
     if (resourceId) {
       fetchQuiz();
@@ -347,7 +419,7 @@ export default function QuizScreen() {
 
   const themeSuffix = effectiveTheme === "dark" ? "-dark" : "";
 
-  if (loading) {
+  if (loading || loadingHistory) {
     return (
       <View className={`flex-1 bg-background${themeSuffix} items-center justify-center`}>
         <ActivityIndicator size="large" color={effectiveTheme === 'dark' ? '#fff' : '#000'} />
@@ -366,6 +438,174 @@ export default function QuizScreen() {
         >
           <Text className="text-on-primary font-semibold">Go Back</Text>
         </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Perfect Score Screen - User achieved 100% and cannot retake
+  if (hasPerfectScore && !quizStarted && !quizCompleted) {
+    return (
+      <View className={`flex-1 bg-background${themeSuffix}`}>
+        <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>
+          <View className="flex-1 px-6 pt-6">
+            <TouchableOpacity 
+              onPress={() => router.back()}
+              className="mb-6"
+            >
+              <Text className="text-primary text-lg font-semibold">← Back</Text>
+            </TouchableOpacity>
+
+            <View className="items-center mb-8">
+              <View className="w-32 h-32 bg-green-100 rounded-full items-center justify-center mb-6">
+                <Text className="text-6xl">🎉</Text>
+              </View>
+              <Text className={`text-3xl font-bold text-green-600 text-center mb-4`}>
+                Perfect Score!
+              </Text>
+              <Text className={`text-on-surface${themeSuffix} text-center text-lg mb-2`}>
+                You've mastered this quiz
+              </Text>
+              <Text className={`text-on-surface-variant${themeSuffix} text-center`}>
+                {resource.title}
+              </Text>
+            </View>
+
+            <View className={`bg-surface${themeSuffix} rounded-2xl p-6 mb-6`}>
+              <Text className={`text-xl font-bold text-on-surface${themeSuffix} mb-4 text-center`}>
+                Your Achievement
+              </Text>
+              
+              <View className="items-center mb-4">
+                <Text className="text-4xl font-bold text-green-500 mb-2">
+                  {latestAttempt?.score}%
+                </Text>
+                <Text className={`text-on-surface${themeSuffix} font-medium`}>
+                  Perfect Score!
+                </Text>
+                <Text className={`text-on-surface-variant${themeSuffix} text-sm`}>
+                  Completed on {latestAttempt && formatDate(latestAttempt.completed_at)}
+                </Text>
+              </View>
+
+              <View className="flex-row justify-between items-center py-3 border-t border-outline-dark">
+                <Text className={`text-on-surface${themeSuffix} font-medium`}>Correct Answers</Text>
+                <Text className="text-lg font-bold text-green-500">
+                  {latestAttempt?.correct_answers}/{latestAttempt?.total_questions}
+                </Text>
+              </View>
+            </View>
+
+            <View className={`bg-green-50 border border-green-200 rounded-2xl p-5 mb-6`}>
+              <Text className="text-green-800 font-semibold text-lg mb-2">🌟 Excellent Work!</Text>
+              <Text className="text-green-700">
+                You've demonstrated complete mastery of this topic. No further attempts are needed.
+              </Text>
+            </View>
+
+            {/* Attempt History */}
+            {quizAttempts.length > 0 && (
+              <View className={`bg-surface${themeSuffix} rounded-2xl p-6 mb-6`}>
+                <View className="flex-row justify-between items-center mb-4">
+                  <Text className={`text-lg font-bold text-on-surface${themeSuffix}`}>
+                    Quiz History
+                  </Text>
+                  <Text className={`text-on-surface-variant${themeSuffix} text-sm`}>
+                    {quizAttempts.length} attempt{quizAttempts.length !== 1 ? 's' : ''}
+                  </Text>
+                </View>
+                
+                <ScrollView style={{ maxHeight: 200 }}>
+                  {quizAttempts.map((attempt, index) => (
+                    <View 
+                      key={attempt.id} 
+                      className={`flex-row justify-between items-center py-3 ${
+                        index < quizAttempts.length - 1 ? 'border-b border-outline-dark' : ''
+                      }`}
+                    >
+                      <View className="flex-1">
+                        <Text className={`text-on-surface${themeSuffix} font-medium`}>
+                          Attempt {quizAttempts.length - index}
+                        </Text>
+                        <Text className={`text-on-surface-variant${themeSuffix} text-xs`}>
+                          {formatDate(attempt.completed_at)}
+                        </Text>
+                      </View>
+                      <Text className={`text-lg font-bold ${getScoreColor(attempt.score)}`}>
+                        {Math.round(attempt.score)}%
+                      </Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </View>
+        </ScrollView>
+
+        <View className={`px-6 py-6 bg-surface${themeSuffix} border-t border-outline${themeSuffix}`}>
+          <TouchableOpacity
+            onPress={() => setShowHistoryModal(true)}
+            className="bg-primary py-4 rounded-xl mb-3"
+          >
+            <Text className="text-on-primary text-center font-bold text-lg">
+              View Detailed History
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="bg-gray-500 py-4 rounded-xl"
+          >
+            <Text className="text-white text-center font-bold text-lg">
+              Return to Learning
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* History Modal */}
+        <Modal
+          visible={showHistoryModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowHistoryModal(false)}
+        >
+          <View className={`flex-1 bg-background${themeSuffix}`}>
+            <View className="px-6 pt-6 pb-4 border-b border-outline-dark">
+              <View className="flex-row justify-between items-center">
+                <Text className={`text-xl font-bold text-on-surface${themeSuffix}`}>
+                  Quiz Attempt History
+                </Text>
+                <TouchableOpacity onPress={() => setShowHistoryModal(false)}>
+                  <Text className="text-primary font-semibold">Close</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <ScrollView className="flex-1 px-6">
+              {quizAttempts.map((attempt, index) => (
+                <View key={attempt.id} className="py-4 border-b border-outline-dark">
+                  <View className="flex-row justify-between items-start mb-2">
+                    <Text className={`text-lg font-bold ${getScoreColor(attempt.score)}`}>
+                      {Math.round(attempt.score)}%
+                    </Text>
+                    <Text className={`text-on-surface-variant${themeSuffix} text-sm`}>
+                      {formatDate(attempt.completed_at)}
+                    </Text>
+                  </View>
+                  <Text className={`text-on-surface${themeSuffix} font-medium mb-1`}>
+                    Attempt {quizAttempts.length - index}
+                  </Text>
+                  <Text className={`text-on-surface-variant${themeSuffix} text-sm`}>
+                    {attempt.correct_answers} out of {attempt.total_questions} correct
+                  </Text>
+                  {attempt.score === 100 && (
+                    <View className="bg-green-100 px-3 py-1 rounded-full mt-2 self-start">
+                      <Text className="text-green-800 text-xs font-medium">Perfect Score 🎉</Text>
+                    </View>
+                  )}
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </Modal>
       </View>
     );
   }
@@ -396,6 +636,35 @@ export default function QuizScreen() {
                 {resource.title}
               </Text>
             </View>
+
+            {/* Previous Attempts Summary */}
+            {quizAttempts.length > 0 && (
+              <View className={`bg-surface${themeSuffix} rounded-2xl p-6 mb-6`}>
+                <Text className={`text-lg font-bold text-on-surface${themeSuffix} mb-3`}>
+                  Previous Attempts
+                </Text>
+                <View className="flex-row justify-between items-center mb-2">
+                  <Text className={`text-on-surface${themeSuffix}`}>Best Score</Text>
+                  <Text className={`text-lg font-bold ${getScoreColor(Math.max(...quizAttempts.map(a => a.score)))}`}>
+                    {Math.round(Math.max(...quizAttempts.map(a => a.score)))}%
+                  </Text>
+                </View>
+                <View className="flex-row justify-between items-center">
+                  <Text className={`text-on-surface${themeSuffix}`}>Total Attempts</Text>
+                  <Text className="text-lg font-bold text-blue-500">
+                    {quizAttempts.length}
+                  </Text>
+                </View>
+                <TouchableOpacity 
+                  onPress={() => setShowHistoryModal(true)}
+                  className="mt-3 py-2 border border-primary rounded-lg"
+                >
+                  <Text className="text-primary text-center font-medium">
+                    View All Attempts
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             <View className={`bg-surface${themeSuffix} rounded-2xl p-6 mb-6`}>
               <Text className={`text-xl font-bold text-on-surface${themeSuffix} mb-4`}>
@@ -459,10 +728,57 @@ export default function QuizScreen() {
             className="bg-primary py-4 rounded-xl shadow-lg"
           >
             <Text className="text-on-primary text-center font-bold text-lg">
-              Start Quiz
+              {quizAttempts.length > 0 ? 'Retake Quiz' : 'Start Quiz'}
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* History Modal */}
+        <Modal
+          visible={showHistoryModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowHistoryModal(false)}
+        >
+          <View className={`flex-1 bg-background${themeSuffix}`}>
+            <View className="px-6 pt-6 pb-4 border-b border-outline-dark">
+              <View className="flex-row justify-between items-center">
+                <Text className={`text-xl font-bold text-on-surface${themeSuffix}`}>
+                  Quiz Attempt History
+                </Text>
+                <TouchableOpacity onPress={() => setShowHistoryModal(false)}>
+                  <Text className="text-primary font-semibold">Close</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <ScrollView className="flex-1 px-6">
+              {quizAttempts.map((attempt, index) => (
+                <View key={attempt.id} className="py-4 border-b border-outline-dark">
+                  <View className="flex-row justify-between items-start mb-2">
+                    <Text className={`text-lg font-bold ${getScoreColor(attempt.score)}`}>
+                      {Math.round(attempt.score)}%
+                    </Text>
+                    <Text className={`text-on-surface-variant${themeSuffix} text-sm`}>
+                      {formatDate(attempt.completed_at)}
+                    </Text>
+                  </View>
+                  <Text className={`text-on-surface${themeSuffix} font-medium mb-1`}>
+                    Attempt {quizAttempts.length - index}
+                  </Text>
+                  <Text className={`text-on-surface-variant${themeSuffix} text-sm`}>
+                    {attempt.correct_answers} out of {attempt.total_questions} correct
+                  </Text>
+                  {attempt.score === 100 && (
+                    <View className="bg-green-100 px-3 py-1 rounded-full mt-2 self-start">
+                      <Text className="text-green-800 text-xs font-medium">Perfect Score 🎉</Text>
+                    </View>
+                  )}
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </Modal>
       </View>
     );
   }
@@ -772,9 +1088,7 @@ export default function QuizScreen() {
                         {isCorrect ? '✓' : '✗'}
                       </Text>
                     </View>
-                    <Text className={`text-lg font-semibold flex-1 ${
-                      isCorrect ? 'text-green-600' : 'text-red-600'
-                    }`}>
+                    <Text className={`text-lg font-semibold flex-1 text-on-surface${themeSuffix}`}>
                       {qIndex + 1}. {question.question}
                     </Text>
                   </View>

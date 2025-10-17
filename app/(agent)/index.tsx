@@ -396,7 +396,7 @@ export default function ResponderDashboard() {
         <View className="px-6 pt-6 pb-4">
           <View className="flex-row justify-between items-center mb-4">
             <View>
-              <Text className="text-headline text-on-surface">Hello, {user.name}</Text>
+              <Text className="text-headline text-on-surface">Hello, {user.full_name}</Text>
               <Text className="text-body text-on-surface-variant">
                 {/* {user.responder_type ? `${user.responder_type} Unit` : 'Emergency Response Unit'} */}
                 {user.badge_number ? `Badge no. ${user.badge_number} `: 'unknown'}
@@ -641,11 +641,19 @@ export default function ResponderDashboard() {
               <Text className="text-on-surface text-center">My Stats</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity 
+            {/* <TouchableOpacity 
               className="bg-surface-variant w-[48%] p-4 rounded-xl items-center"
             >
               <Text className="text-2xl mb-2">📞</Text>
               <Text className="text-on-surface text-center">Control Center</Text>
+            </TouchableOpacity> */}
+
+            <TouchableOpacity 
+              className="bg-surface-variant w-[48%] p-4 rounded-xl items-center"
+              onPress={() => router.push('/(agent)/notifications')}
+            >
+              <Text className="text-2xl mb-2">🔔</Text>
+              <Text className="text-on-surface text-center">Notification</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
