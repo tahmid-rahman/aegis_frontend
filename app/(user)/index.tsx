@@ -124,6 +124,7 @@ export default function Dashboard() {
       description: 'Trigger immediate help',
       icon: '🚨', 
       color: 'bg-panic', 
+      textColor: 'text-white',
       action: () => router.push('/(user)/panic-confirm'),
       emergency: true
     },
@@ -132,6 +133,7 @@ export default function Dashboard() {
       description: 'Discreet safety features',
       icon: isStealthMode ? '🕶️' : '👁️', 
       color: isStealthMode ? 'bg-green-500' : 'bg-surface-variant', 
+      textColor: isStealthMode ? 'text-white' : 'text-on-surface',
       action: toggleStealthMode
     },
     { 
@@ -139,6 +141,7 @@ export default function Dashboard() {
       description: 'Record evidence discreetly',
       icon: '📸', 
       color: 'bg-secondary', 
+      textColor: 'text-on-secondary',
       action: () => router.push('/(user)/silent-capture') 
     },
     { 
@@ -146,6 +149,7 @@ export default function Dashboard() {
       description: 'Confirm your safety status',
       icon: '✅', 
       color: 'bg-tertiary', 
+      textColor: 'text-on-tertiary',
       action: () => router.push('/(user)/safety-check') 
     },
     { 
@@ -153,6 +157,7 @@ export default function Dashboard() {
       description: 'Submit anonymous report',
       icon: '📝', 
       color: 'bg-primary', 
+      textColor: 'text-on-primary',
       action: () => router.push('/(user)/report') 
     },
     { 
@@ -160,6 +165,7 @@ export default function Dashboard() {
       description: 'View safe paths home',
       icon: '🗺️', 
       color: 'bg-accent', 
+      textColor: 'text-on-accent',
       action: () => router.push('/(user)/safe-routes') 
     },
   ];
@@ -267,27 +273,37 @@ export default function Dashboard() {
             </TouchableOpacity>
           </View>
           
-          <View className="flex-row flex-wrap justify-between text-on-surface">
+          <View className="flex-row flex-wrap justify-between">
             {quickActions.map((action, index) => (
               <TouchableOpacity
                 key={index}
-                className={`w-[48%] mb-4 p-4 rounded-xl ${action.emergency ? 'border border-panic' : 'border border-outline'}`}
+                className={`w-[48%] mb-4 p-4 rounded-xl ${
+                  action.emergency 
+                    ? 'bg-panic border border-panic' 
+                    : 'bg-surface-variant border border-outline'
+                }`}
                 onPress={action.action}
                 activeOpacity={0.8}
-                style={{ backgroundColor: action.emergency ? 'rgba(220, 38, 38, 0.1)' : 'rgb(var(--color-surface-variant))' }}
               >
                 <View className="flex-row items-center">
                   <View className={`p-2 rounded-full mr-3 ${action.color}`}>
-                    <Text className="text-lg">{action.icon}</Text>
+                    <Text className={`text-lg ${action.textColor}`}>{action.icon}</Text>
                   </View>
                   <View className="flex-1">
                     <Text 
-                      className="text-on-surface font-medium text-on-surface-varient" 
-                      style={{ color: action.emergency ? 'rgb(var(--color-error))' : 'rgb(var(--color-on-surface))' }}
+                      className={`font-medium ${
+                        action.emergency ? 'text-white' : 'text-on-surface'
+                      }`}
                     >
                       {action.title}
                     </Text>
-                    <Text className="text-label text-on-surface-variant mt-1">{action.description}</Text>
+                    <Text 
+                      className={`text-label mt-1 ${
+                        action.emergency ? 'text-white/80' : 'text-on-surface-variant'
+                      }`}
+                    >
+                      {action.description}
+                    </Text>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -307,7 +323,7 @@ export default function Dashboard() {
                 activeOpacity={0.7}
               >
                 <View className="bg-primary/20 p-2 rounded-full mr-4">
-                  <Text className="text-lg">{resource.icon}</Text>
+                  <Text className="text-lg text-on-surface">{resource.icon}</Text>
                 </View>
                 <View className="flex-1">
                   <Text className="text-on-surface font-medium">{resource.title}</Text>
@@ -326,7 +342,7 @@ export default function Dashboard() {
               Recent Activity {unreadCount > 0 && `(${unreadCount} unread)`}
             </Text>
             <TouchableOpacity 
-            onPress={() => router.push('/(user)/notifications')}
+              onPress={() => router.push('/(user)/notifications')}
             >
               <Text className="text-primary">See All</Text>
             </TouchableOpacity>
