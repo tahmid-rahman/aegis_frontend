@@ -8,7 +8,7 @@ import { api } from '../../services/api';
 
 interface UserProfile {
   id: number;
-  full_name: string;
+  name: string;
   email: string;
   user_type: string;
   profile_picture?: string;
@@ -65,6 +65,7 @@ export default function Dashboard() {
       // Fetch user profile
       const profileResponse = await api.get('/auth/profile/');
       setUserProfile(profileResponse.data);
+      console.log(profileResponse.data)
 
       // Fetch safety score
       try {
@@ -218,7 +219,7 @@ export default function Dashboard() {
           <View className="flex-row justify-between items-center mb-2">
             <View>
               <Text className="text-headline text-on-surface">
-                Hello, {userProfile?.full_name || 'User'}
+                Hello, {userProfile?.name || 'User'}
               </Text>
               <Text className="text-body text-on-surface-variant">
                 Your safety is our priority

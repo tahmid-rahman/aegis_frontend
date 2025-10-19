@@ -23,7 +23,6 @@ interface User {
 
 interface EmergencyInfo {
   emergencyContacts: number;
-  lastLocationShare: string;
   safetyScore: number;
   panicActivated: number;
 }
@@ -61,7 +60,6 @@ export default function Profile() {
 
   const [emergencyInfo, setEmergencyInfo] = useState({
     emergencyContacts: 0,
-    lastLocationShare: '',
     safetyScore: 0,
     panicActivated: 0,
   });
@@ -278,13 +276,27 @@ export default function Profile() {
   };
 
   const fetchEmergencyInfo = async (): Promise<EmergencyInfo> => {
-    // Replace with actual API call when available
-    return {
-      emergencyContacts: 3,
-      lastLocationShare: '2 minutes ago',
-      safetyScore: 85,
-      panicActivated: 0,
-    };
+
+    try {
+      const emergencyResponse = await api.get('/aegis/user-stastics/');
+      
+      console.log('Emergency Info Response:', emergencyResponse.data);
+
+      
+      return {
+        emergencyContacts: emergencyResponse.data.data.contact || 0,
+        safetyScore: emergencyResponse.data.data.score || 0,
+        panicActivated: emergencyResponse.data.data.activated || 0,
+      };
+    } catch (error: any) {
+      console.error('Error fetching emergency info:', error);
+      
+      return {
+        emergencyContacts: 0,
+        safetyScore: 0,
+        panicActivated: 0,
+      };
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -318,7 +330,7 @@ export default function Profile() {
   };
 
   const handleViewActivityHistory = () => {
-    router.push('/activity');
+    // router.push('/activity');
   };
 
   const getInitials = (name: string) => {
@@ -367,12 +379,12 @@ export default function Profile() {
           value: `${emergencyInfo.emergencyContacts} contacts`,
           action: handleViewEmergencyContacts
         },
-        { 
-          icon: "📍", 
-          label: "Location Sharing", 
-          value: emergencyInfo.lastLocationShare,
-          status: "active"
-        },
+        // { 
+        //   icon: "📍", 
+        //   label: "Location Sharing", 
+        //   value: emergencyInfo.lastLocationShare,
+        //   status: "active"
+        // },
         { 
           icon: "⭐", 
           label: "Safety Score", 
@@ -516,12 +528,12 @@ export default function Profile() {
         ))}
 
         {/* Quick Actions */}
-        <View className="px-6 mb-6">
+        {/* <View className="px-6 mb-6">
           <Text className="text-lg font-semibold text-on-surface mb-3">Quick Actions</Text>
           <View className="flex-row flex-wrap justify-between">
             <TouchableOpacity 
               className="bg-surface-variant w-[48%] p-4 rounded-xl mb-4 items-center"
-              onPress={() => router.push('/activity')}
+              // onPress={() => router.push('/activity')}
             >
               <Text className="text-2xl mb-2">📊</Text>
               <Text className="text-on-surface text-center">Activity History</Text>
@@ -537,7 +549,7 @@ export default function Profile() {
             
             <TouchableOpacity 
               className="bg-surface-variant w-[48%] p-4 rounded-xl items-center"
-              onPress={() => router.push('/emergency-info')}
+              // onPress={() => router.push('/emergency-info')}
             >
               <Text className="text-2xl mb-2">📋</Text>
               <Text className="text-on-surface text-center">Emergency Info</Text>
@@ -545,13 +557,13 @@ export default function Profile() {
             
             <TouchableOpacity 
               className="bg-surface-variant w-[48%] p-4 rounded-xl items-center"
-              onPress={() => router.push('/help')}
+              // onPress={() => router.push('/help')}
             >
               <Text className="text-2xl mb-2">❓</Text>
               <Text className="text-on-surface text-center">Help & Support</Text>
             </TouchableOpacity>
           </View>
-        </View> 
+        </View>  */}
       </ScrollView>
     </View>
   );

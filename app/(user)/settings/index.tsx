@@ -51,53 +51,53 @@ export default function Settings() {
   };
 
   const settingsSections = [
-    {
-      title: "Privacy & Safety",
-      icon: "🛡️",
-      items: [
-        { 
-          label: "Location Sharing", 
-          description: "Share your location during emergencies",
-          type: "switch",
-          value: settings.locationSharing,
-          action: () => handleToggleSetting('locationSharing')
-        },
-        { 
-          label: "Silent Mode", 
-          description: "Disable all sounds during emergencies",
-          type: "switch",
-          value: settings.silentMode,
-          action: () => handleToggleSetting('silentMode')
-        },
-        { 
-          label: "Auto Recording", 
-          description: "Automatically record during emergencies",
-          type: "switch",
-          value: settings.autoRecord,
-          action: () => handleToggleSetting('autoRecord')
-        },
-      ]
-    },
-    {
-      title: "Notifications",
-      icon: "🔔",
-      items: [
-        { 
-          label: "Push Notifications", 
-          description: "Receive important alerts and updates",
-          type: "switch",
-          value: settings.notifications,
-          action: () => handleToggleSetting('notifications')
-        },
-        { 
-          label: "Emergency Alerts", 
-          description: "Critical safety notifications",
-          type: "switch",
-          value: true,
-          action: () => {}
-        },
-      ]
-    },
+    // {
+    //   title: "Privacy & Safety",
+    //   icon: "🛡️",
+    //   items: [
+    //     { 
+    //       label: "Location Sharing", 
+    //       description: "Share your location during emergencies",
+    //       type: "switch",
+    //       value: settings.locationSharing,
+    //       action: () => handleToggleSetting('locationSharing')
+    //     },
+    //     { 
+    //       label: "Silent Mode", 
+    //       description: "Disable all sounds during emergencies",
+    //       type: "switch",
+    //       value: settings.silentMode,
+    //       action: () => handleToggleSetting('silentMode')
+    //     },
+    //     { 
+    //       label: "Auto Recording", 
+    //       description: "Automatically record during emergencies",
+    //       type: "switch",
+    //       value: settings.autoRecord,
+    //       action: () => handleToggleSetting('autoRecord')
+    //     },
+    //   ]
+    // },
+    // {
+    //   title: "Notifications",
+    //   icon: "🔔",
+    //   items: [
+    //     { 
+    //       label: "Push Notifications", 
+    //       description: "Receive important alerts and updates",
+    //       type: "switch",
+    //       value: settings.notifications,
+    //       action: () => handleToggleSetting('notifications')
+    //     },
+    //     { 
+    //       label: "Emergency Alerts", 
+    //       description: "Critical safety notifications",
+    //       type: "switch",
+    //       value: true,
+    //       action: () => {}
+    //     },
+    //   ]
+    // },
     {
       title: "Appearance",
       icon: "🎨",
@@ -111,25 +111,25 @@ export default function Settings() {
         },
       ]
     },
-    {
-      title: "Security",
-      icon: "🔐",
-      items: [
-        { 
-          label: "Biometric Authentication", 
-          description: "Use fingerprint or face ID to unlock",
-          type: "switch",
-          value: settings.biometricAuth,
-          action: () => handleToggleSetting('biometricAuth')
-        },
-        { 
-          label: "Change Password", 
-          description: "Update your login password",
-          type: "navigation",
-          action: () => router.push('/user/change-password')
-        },
-      ]
-    }
+    // {
+    //   title: "Security",
+    //   icon: "🔐",
+    //   items: [
+    //     { 
+    //       label: "Biometric Authentication", 
+    //       description: "Use fingerprint or face ID to unlock",
+    //       type: "switch",
+    //       value: settings.biometricAuth,
+    //       action: () => handleToggleSetting('biometricAuth')
+    //     },
+    //     { 
+    //       label: "Change Password", 
+    //       description: "Update your login password",
+    //       type: "navigation",
+    //       action: () => router.push('/user/change-password')
+    //     },
+    //   ]
+    // }
   ];
 
   return (

@@ -625,7 +625,7 @@ export default function ResponderDashboard() {
         <View className="px-6 mb-8">
           <Text className="text-title text-on-surface mb-3">Quick Actions</Text>
           <View className="flex-row flex-wrap justify-between">
-            <TouchableOpacity 
+            {/* <TouchableOpacity 
               className="bg-surface-variant w-[48%] p-4 rounded-xl items-center mb-3"
               onPress={() => router.push('/(agent)/messages')}
             >
@@ -640,7 +640,7 @@ export default function ResponderDashboard() {
               <Text className="text-2xl mb-2">📊</Text>
               <Text className="text-on-surface text-center">My Stats</Text>
             </TouchableOpacity>
-            
+             */}
             {/* <TouchableOpacity 
               className="bg-surface-variant w-[48%] p-4 rounded-xl items-center"
             >

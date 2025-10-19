@@ -62,7 +62,7 @@ export default function ContactsScreen() {
 
   const handleAddContact = () => {
     Alert.alert('Add Contact', 'Choose how to add a contact:', [
-      { text: 'From Phone Contacts', onPress: () => console.log('Import from phone') },
+      // { text: 'From Phone Contacts', onPress: () => console.log('Import from phone') },
       { text: 'Manual Entry', onPress: () => router.push('/contacts/add') },
       { text: 'Cancel', style: 'cancel' }
     ]);
