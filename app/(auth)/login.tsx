@@ -240,14 +240,14 @@ export default function Login() {
 
       {/* Footer Links */}
       <View className="flex-row justify-between mt-8">
-        <Link href="/forgot-password" asChild>
+        {/* <Link href="/forgot-password" asChild>
           <TouchableOpacity 
             className="active:bg-hover rounded px-2 py-1"
             disabled={isLoading}
           >
             <Text className="text-accent font-medium">Forgot Password?</Text>
           </TouchableOpacity>
-        </Link>
+        </Link> */}
         <Link href="/signup" asChild>
           <TouchableOpacity 
             className="active:bg-hover rounded px-2 py-1"

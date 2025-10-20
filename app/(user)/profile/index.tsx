@@ -452,7 +452,7 @@ export default function Profile() {
                 </View>
               </TouchableOpacity>
               
-              <Text className="text-xl font-semibold text-on-surface">{userData.name || 'Abdur Rahamn'}</Text>
+              <Text className="text-xl font-semibold text-on-surface">{userData.name || ''}</Text>
               <Text className="text-on-surface-variant">{userData.phone || '+880 0000 0000'}</Text>
               
               {/* Safety Status Badge */}
